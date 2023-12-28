@@ -68,14 +68,11 @@ contract BBB is
         string uri;
     }
 
-    // error InvalidRole; TODO
-    // error InvalidAddress;
+    error InvalidRole();
+    error InvalidAddress();
 
     modifier onlyModerator() {
-        require(
-            hasRole(MODERATOR_ROLE, msg.sender),
-            "Lazy1155: Caller is not a moderator"
-        );
+        if (!hasRole(MODERATOR_ROLE, msg.sender)) revert InvalidRole();
         _;
     }
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
@@ -91,7 +88,7 @@ contract BBB is
     ) ERC1155(_uri) EIP712("Lazy1155", "1") {
         require(_protocolFeeRecipient != address(0), InvalidAddress());
 
-        _setupRole(MODERATOR_ROLE, moderator);
+        grantRole(MODERATOR_ROLE, moderator);
 
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
