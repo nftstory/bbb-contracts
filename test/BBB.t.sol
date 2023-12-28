@@ -5,21 +5,18 @@ import { PRBTest } from "@prb/test/src/PRBTest.sol";
 import { console2 } from "forge-std/src/console2.sol";
 import { StdCheats } from "forge-std/src/StdCheats.sol";
 
-import { Foo } from "../src/Foo.sol";
+import { BBB } from "../src/BBB.sol";
 
-interface IERC20 {
-    function balanceOf(address account) external view returns (uint256);
-}
 
 /// @dev If this is your first time with Forge, read this tutorial in the Foundry Book:
 /// https://book.getfoundry.sh/forge/writing-tests
-contract FooTest is PRBTest, StdCheats {
+contract BBBTest is PRBTest, StdCheats {
     Foo internal foo;
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
         // Instantiate the contract-under-test.
-        foo = new Foo();
+        bbb1155 = new Foo();
     }
 
     /// @dev Basic test. Run it with `forge test -vvv` to see the console log.
