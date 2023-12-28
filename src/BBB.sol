@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
-import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {ERC1155URIStorage} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
-import {ERC1155Supply} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
-import {ERC1155Burnable} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
+import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
+import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import { ERC1155Burnable } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 
-import {ICompositePriceModel} from "./pricing/interfaces/ICompositePriceModel.sol";
-import {MyCompositePriceModel} from "./pricing/MyCompositePriceModel.sol";
+import { ICompositePriceModel } from "./pricing/interfaces/ICompositePriceModel.sol";
+import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title bbb1155
@@ -35,7 +35,9 @@ contract BBB is
     Nonces
 {
     using Address for address;
-    // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee recipient
+    // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
+    // recipient
+
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 
     // Configurable
@@ -56,9 +58,7 @@ contract BBB is
 
     // Typehash used for EIP-712 compliance
     bytes32 private constant PERMIT_TYPEHASH =
-        keccak256(
-            "Mint1155(address creator,address priceModel,uint256 tokenId,bytes data)"
-        );
+        keccak256("Mint1155(address creator,address priceModel,uint256 tokenId,bytes data)");
 
     // Struct to hold minting data
     struct Mint1155Data {
@@ -75,6 +75,7 @@ contract BBB is
         if (!hasRole(MODERATOR_ROLE, msg.sender)) revert InvalidRole();
         _;
     }
+
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address newProtocolFeeRecipient);
@@ -85,7 +86,10 @@ contract BBB is
         address _protocolFeeRecipient,
         uint256 _protocolFee,
         uint256 _creatorFee
-    ) ERC1155(_uri) EIP712("Lazy1155", "1") {
+    )
+        ERC1155(_uri)
+        EIP712("Lazy1155", "1")
+    {
         require(_protocolFeeRecipient != address(0), InvalidAddress());
 
         grantRole(MODERATOR_ROLE, moderator);
@@ -173,17 +177,20 @@ contract BBB is
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external payable nonReentrant {
+    )
+        external
+        payable
+        nonReentrant
+    {
         require(amount > 0, "Lazy1155: Amount must be > 0");
 
         require(uriToTokenId[data.uri] != 0, "Lazy1155: uri already in use");
-        require(
-            allowedpriceModels[data.priceModel],
-            "Lazy1155: priceModel not allowed"
-        );
-        require(ECDSA.ecrecover(hash, v, r, s)); // Signer maxi
+        require(allowedpriceModels[data.priceModel], "Lazy1155: priceModel not allowed");
+        // bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, _hash(permit))); // more correct way borrowed from https://github.com/nftstory/CALM/blob/main/contracts/CALM1155.sol
+        bytes32 digest = keccak256(abi.encodePacked(keccak256(data)));// Quick and dirty way to derive digest 
+        // Verify that the intent signer == data.signer
+        require(ECDSA.ecrecover(digest, v, r, s) == data.signer); // Signer maxi
 
-        // We have to verify that the intent signer == data.signer TODO
         // We need to store the data.creator in the creators mapping ✅
         // We need to store the price model ✅
         // We need to compute the price from the curve ✅
@@ -214,19 +221,12 @@ contract BBB is
      * @param amount Amount of tokens to mint
      */
     function mint(uint256 tokenId, uint256 amount) external payable {
-        // require(amount > 0, "Lazy1155: Amount must be > 0");
-
         require(exists(tokenId), "Lazy1155: Token does not exist");
         require(amount > 0, "Lazy1155: Amount must be > 0");
 
-        ICompositePriceModel priceModel = ICompositePriceModel(
-            tokenIdTopriceModel[tokenId]
-        );
+        ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
-        uint256 price = priceModel.sumPrice(
-            currentSupply,
-            currentSupply + amount
-        );
+        uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
         require(msg.value >= price, "Lazy1155: Insufficient funds to mint");
         // We have to verify that the intent signer == data.signer TODO
         // We need to store the data.creator in the creators mapping ✅
@@ -235,10 +235,6 @@ contract BBB is
         // We need to store the uri ✅
         // _mint the nft ✅
         // Pay fees x2 TODO
-
-        ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
-
-        uint256 price = priceModel.sumPrice(0, amount);
 
         // Mint tokens
         _mint(msg.sender, tokenId, amount, "");
@@ -253,14 +249,9 @@ contract BBB is
     function burn(uint256 tokenId, uint256 amount) external {
         require(exists(tokenId), "Lazy1155: Token does not exist");
         require(amount > 0, "Lazy1155: Amount must be > 0");
-        ICompositePriceModel priceModel = ICompositePriceModel(
-            tokenIdTopriceModel[tokenId]
-        );
+        ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
-        uint256 refund = priceModel.sumPrice(
-            currentSupply - amount,
-            currentSupply
-        );
+        uint256 refund = priceModel.sumPrice(currentSupply - amount, currentSupply);
         _burn(msg.sender, tokenid, amount);
 
         payable(msg.sender).sendValue(refund);
@@ -289,9 +280,7 @@ contract BBB is
 
     // ========== Overrides ==========
 
-    function uri(
-        uint256 tokenId
-    ) public view override(ERC1155, ERC1155URIStorage) returns (string memory) {
+    function uri(uint256 tokenId) public view override(ERC1155, ERC1155URIStorage) returns (string memory) {
         return ERC1155URIStorage.uri(tokenId);
     }
 
@@ -300,7 +289,10 @@ contract BBB is
         address to,
         uint256[] memory ids,
         uint256[] memory values
-    ) internal override(ERC1155, ERC1155Supply) {
+    )
+        internal
+        override(ERC1155, ERC1155Supply)
+    {
         super._update(from, to, ids, values);
     }
 
