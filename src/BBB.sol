@@ -41,7 +41,7 @@ contract BBB is
     // Configurable
     address public protocolFeeRecipient;
     uint256 public protocolFeePoints; // 50 = 5%
-    uint25 public creatorFee; // 50 = 5%
+    uint256 public creatorFee; // 50 = 5%
 
     // TODO change awful name
     uint256 public totalNumberOfTokenIds;
