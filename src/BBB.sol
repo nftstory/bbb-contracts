@@ -107,11 +107,6 @@ contract BBB is
 
         grantRole(MODERATOR_ROLE, _moderator);
 
-        // 712 setup TODO see if necessary given 712 inheritance
-        chainId = block.chainid;
-        verifyingContract = address(this);
-        salt = keccak256(bytes(_name));
-
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
         creatorFee = _creatorFee;
