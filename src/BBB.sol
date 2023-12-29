@@ -243,17 +243,3 @@ contract BBB is
             || interfaceId == type(IERC1155MetadataURI).interfaceId || super.supportsInterface(interfaceId);
     }
 }
-//     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-//         return interfaceId == type(IAccessControl).interfaceId || super.supportsInterface(interfaceId);
-//     }
-// contract BBB is
-//     AccessControl,
-//     Pausable,
-//     ReentrancyGuard,
-//     ERC1155,
-//     ERC1155URIStorage,
-//     ERC1155Supply,
-//     ERC1155Burnable,
-//     EIP712,
-//     Nonces
-// {
