@@ -58,18 +58,37 @@ contract BBB is
     // Maps token IDs to their creators' addresses
     mapping(uint256 => address) public creators;
 
-    // Typehash used for EIP-712 compliance
-    bytes32 private constant EIP712DOMAIN_TYPEHASH =
-        keccak256("Mint1155(address creator,address signer,address priceModel,string uri)");
+    // EIP712
+    // Unnecessary bc included in 712 pkg
+    // uint256 private immutable chainId;
+    // address private immutable verifyingContract;
+    // bytes32 private immutable salt; 
+    // bytes32 private constant EIP712DOMAIN_TYPEHASH =
+    //     keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)");
+    // bytes32 private immutable DOMAIN_SEPARATOR;
 
+    // struct EIP712Domain {
+    //     string name; // bbb
+    //     string version; // 1
+    //     uint256 chainId; // 1
+    //     address verifyingContract; // address(this)
+    //         // uint256 salt; // keccak256(bbb)
+    // }
+
+
+    // Typehash for MintIntent
+    bytes32 private constant MINTINTENT_TYPE =
+        keccak256("MintIntent(address creator,address signer,address priceModel,string uri)");
+    
     // Struct to hold minting data
     struct MintIntent {
         address creator; // The creator fee beneficiary
         address signer; // The "large blob" signer
-        address priceModel;
-        string uri;
+        address priceModel; // The price curve
+        string uri; // The ipfs metadata digest
     }
 
+    // Errors
     error InvalidRole();
     error InvalidAddress();
     error TokenDoesNotExist();
@@ -79,28 +98,37 @@ contract BBB is
     error InvalidPriceModel();
     error InvalidIntent();
 
+    // Modifiers
     modifier onlyModerator() {
         if (!hasRole(MODERATOR_ROLE, msg.sender)) revert InvalidRole();
         _;
     }
 
+    // Events
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address newProtocolFeeRecipient);
 
     constructor(
-        string memory _uri,
-        address moderator,
+        string memory _name,
+        string memory _signingDomainVersion,
+        string memory _uri, // Wraps tokenID in a baseURI https://eips.ethereum.org/EIPS/eip-1155#metadata[defined in the EIP]
+        address _moderator,
         address _protocolFeeRecipient,
         uint256 _protocolFee,
         uint256 _creatorFee
     )
         ERC1155(_uri)
-        EIP712("Lazy1155", "1")
+        EIP712(_name, _signingDomainVersion)
     {
         if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
 
-        grantRole(MODERATOR_ROLE, moderator);
+        grantRole(MODERATOR_ROLE, _moderator);
+
+        // 712 setup TODO see if necessary given 712 inheritance
+        chainId = block.chainid;
+        verifyingContract = address(this);
+        salt = keccak256(bytes(_name));
 
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
