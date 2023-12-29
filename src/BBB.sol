@@ -5,6 +5,8 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
+import { IERC1155MetadataURI } from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
+
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import { ERC1155Burnable } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 
@@ -70,6 +72,12 @@ contract BBB is
 
     error InvalidRole();
     error InvalidAddress();
+    error TokenDoesNotExist();
+    error InvalidAmount();
+    error InsufficientFunds();
+    error UriAlreadyMinted();
+    error InvalidPriceModel();
+    error InvalidIntent();
 
     modifier onlyModerator() {
         if (!hasRole(MODERATOR_ROLE, msg.sender)) revert InvalidRole();
@@ -90,7 +98,7 @@ contract BBB is
         ERC1155(_uri)
         EIP712("Lazy1155", "1")
     {
-        require(_protocolFeeRecipient != address(0), InvalidAddress());
+        if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
 
         grantRole(MODERATOR_ROLE, moderator);
 
@@ -182,14 +190,15 @@ contract BBB is
         payable
         nonReentrant
     {
-        require(amount > 0, "Lazy1155: Amount must be > 0");
+        if (amount <= 0) revert InvalidAmount();
 
-        require(uriToTokenId[data.uri] != 0, "Lazy1155: uri already in use");
-        require(allowedpriceModels[data.priceModel], "Lazy1155: priceModel not allowed");
-        // bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, _hash(permit))); // more correct way borrowed from https://github.com/nftstory/CALM/blob/main/contracts/CALM1155.sol
-        bytes32 digest = keccak256(abi.encodePacked(keccak256(data)));// Quick and dirty way to derive digest 
+        if (uriToTokenId[data.uri] != 0) revert UriAlreadyMinted();
+        if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
+        // bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, _hash(permit))); // more correct
+        // way borrowed from https://github.com/nftstory/CALM/blob/main/contracts/CALM1155.sol
+        bytes32 digest = keccak256(abi.encodePacked(keccak256(bytes(data)))); // Quick and dirty way to derive digest
         // Verify that the intent signer == data.signer
-        require(ECDSA.ecrecover(digest, v, r, s) == data.signer); // Signer maxi
+        if (ECDSA.tryRecover(digest, v, r, s) != data.signer) revert InvalidIntent(); // Signer maxi
 
         // We need to store the data.creator in the creators mapping ✅
         // We need to store the price model ✅
@@ -201,7 +210,7 @@ contract BBB is
         ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
 
         uint256 price = priceModel.sumPrice(0, amount);
-        require(msg.value >= price, "Lazy1155: Insufficient funds to mint");
+        if (msg.value < price) revert InsufficientFunds();
 
         // option b) full 6492 reliance - deploy the smart account when purchased
         uint256 tokenId = ++totalNumberOfTokenIds; // TODO check
@@ -220,14 +229,14 @@ contract BBB is
      * @param tokenId ID of token to mint
      * @param amount Amount of tokens to mint
      */
-    function mint(uint256 tokenId, uint256 amount) external payable {
-        require(exists(tokenId), "Lazy1155: Token does not exist");
-        require(amount > 0, "Lazy1155: Amount must be > 0");
+    function mint(uint256 tokenId, uint256 amount) external payable nonReentrant {
+        if (!exists(tokenId)) revert TokenDoesNotExist();
+        if (amount <= 0) revert InvalidAmount();
 
         ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
         uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
-        require(msg.value >= price, "Lazy1155: Insufficient funds to mint");
+        if (msg.value < price) revert InsufficientFunds();
         // We have to verify that the intent signer == data.signer TODO
         // We need to store the data.creator in the creators mapping ✅
         // We need to store the price model ✅
@@ -242,26 +251,26 @@ contract BBB is
         uint256 excess = msg.value - price;
 
         if (excess > 0) {
-            payable(msg.sender).sendValue(excess);
+            Address.sendValue(payable(msg.sender), excess);
         }
     }
 
     function burn(uint256 tokenId, uint256 amount) external {
-        require(exists(tokenId), "Lazy1155: Token does not exist");
-        require(amount > 0, "Lazy1155: Amount must be > 0");
+        if (!exists(tokenId)) revert TokenDoesNotExist();
+        if (amount <= 0) revert InvalidAmount();
         ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
         uint256 refund = priceModel.sumPrice(currentSupply - amount, currentSupply);
-        _burn(msg.sender, tokenid, amount);
+        _burn(msg.sender, tokenId, amount);
 
-        payable(msg.sender).sendValue(refund);
+        Address.sendValue(payable(msg.sender), refund);
     }
 
-    /**
-     * @notice Mint new ERC1155 token(s) directly
-     * @param data Struct containing minting data
-     * @param amount Amount of tokens to mint
-     */
+    // /**
+    //  * @notice Mint new ERC1155 token(s) directly
+    //  * @param data Struct containing minting data
+    //  * @param amount Amount of tokens to mint
+    //  */
     // function mintDirectly(Mint1155Data memory data, uint256 amount) external {
     //     require(amount > 0, "Lazy1155: Amount must be > 0");
     //     require(amount <= data.supply, "Lazy1155: Amount must be <= supply");
@@ -304,4 +313,29 @@ contract BBB is
     function unpause() external onlyRole(MODERATOR_ROLE) {
         _unpause();
     }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(AccessControl, ERC1155)
+        returns (bool)
+    {
+        return AccessControl.supportsInterface(interfaceId) || ERC1155.supportsInterface(interfaceId)
+            || interfaceId == type(IERC1155MetadataURI).interfaceId || super.supportsInterface(interfaceId);
+    }
 }
+//     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+//         return interfaceId == type(IAccessControl).interfaceId || super.supportsInterface(interfaceId);
+//     }
+// contract BBB is
+//     AccessControl,
+//     Pausable,
+//     ReentrancyGuard,
+//     ERC1155,
+//     ERC1155URIStorage,
+//     ERC1155Supply,
+//     ERC1155Burnable,
+//     EIP712,
+//     Nonces
+// {
