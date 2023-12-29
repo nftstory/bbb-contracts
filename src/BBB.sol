@@ -59,7 +59,7 @@ contract BBB is
     mapping(uint256 => address) public creators;
 
     // Typehash for MintIntent
-    bytes32 private constant MINTINTENT_TYPE =
+    bytes32 private constant MINTINTENT_TYPEHASH =
         keccak256("MintIntent(address creator,address signer,address priceModel,string uri)");
     
     // Struct to hold minting data
@@ -79,6 +79,7 @@ contract BBB is
     error UriAlreadyMinted();
     error InvalidPriceModel();
     error InvalidIntent();
+    error SignatureError(ECDSA.RecoverError, bytes32);
 
     // Modifiers
     modifier onlyModerator() {
@@ -138,17 +139,15 @@ contract BBB is
 
         if (uriToTokenId[data.uri] != 0) revert UriAlreadyMinted();
         if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
-        // bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, _hash(permit))); // more correct
-        // way borrowed from https://github.com/nftstory/CALM/blob/main/contracts/CALM1155.sol
-        bytes32 digest = keccak256(abi.encodePacked(keccak256(bytes(data)))); // Quick and dirty way to derive digest
+        
+        // Get the digest of the MintIntent
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(MINTINTENT_TYPEHASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri)))));
+        
         // Verify that the intent signer == data.signer
-        if (ECDSA.tryRecover(digest, v, r, s) != data.signer) revert InvalidIntent(); // Signer maxi
+        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
+        if (intentSigner == address(0)) revert SignatureError(err, info); // Handle error
+        if (intentSigner != data.signer) revert InvalidIntent(); // Intent signer does not match signer TODO move to try/catch
 
-        // We need to store the data.creator in the creators mapping ✅
-        // We need to store the price model ✅
-        // We need to compute the price from the curve ✅
-        // We need to store the uri ✅
-        // _mint the nft ✅
         // Pay fees x2 TODO
 
         ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
