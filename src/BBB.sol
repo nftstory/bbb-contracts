@@ -58,24 +58,6 @@ contract BBB is
     // Maps token IDs to their creators' addresses
     mapping(uint256 => address) public creators;
 
-    // EIP712
-    // Unnecessary bc included in 712 pkg
-    // uint256 private immutable chainId;
-    // address private immutable verifyingContract;
-    // bytes32 private immutable salt; 
-    // bytes32 private constant EIP712DOMAIN_TYPEHASH =
-    //     keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)");
-    // bytes32 private immutable DOMAIN_SEPARATOR;
-
-    // struct EIP712Domain {
-    //     string name; // bbb
-    //     string version; // 1
-    //     uint256 chainId; // 1
-    //     address verifyingContract; // address(this)
-    //         // uint256 salt; // keccak256(bbb)
-    // }
-
-
     // Typehash for MintIntent
     bytes32 private constant MINTINTENT_TYPE =
         keccak256("MintIntent(address creator,address signer,address priceModel,string uri)");
