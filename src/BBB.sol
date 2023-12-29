@@ -59,13 +59,13 @@ contract BBB is
     mapping(uint256 => address) public creators;
 
     // Typehash used for EIP-712 compliance
-    bytes32 private constant PERMIT_TYPEHASH =
-        keccak256("Mint1155(address creator,address priceModel,uint256 tokenId,bytes data)");
+    bytes32 private constant EIP712DOMAIN_TYPEHASH =
+        keccak256("Mint1155(address creator,address signer,address priceModel,string uri)");
 
     // Struct to hold minting data
-    struct Mint1155Data {
-        address creator; // The creator of the 1155
-        address signer; // The "large blob"
+    struct MintIntent {
+        address creator; // The creator fee beneficiary
+        address signer; // The "large blob" signer
         address priceModel;
         string uri;
     }
@@ -112,67 +112,6 @@ contract BBB is
     }
 
     /**
-     * @notice Mint ERC1155 token(s) using an EIP-712 signature
-     * @param data Struct containing minting data
-     * @param sig EIP-712 signature
-     */
-    // function mintPromise(
-    //     Mint1155Data memory data,
-    //     bytes memory sig
-    // ) external payable nonReentrant returns (uint256 amountMinted) {
-    //     require(
-    //         msg.value >= totalPrice,
-    //         "Lazy1155: Insufficient funds to mint"
-    //     );
-
-    //     require(amount > 0, "Lazy1155: Amount must be > 0");
-    //     require(amount <= data.supply, "Lazy1155: Amount must be <= supply");
-    //     require(allowedpriceModels[data.priceModel], "Lazy1155: Price curve not allowed");
-    //     tokenIdTopriceModel[data.tokenId] = data.priceModel;
-
-    //     uint256 currentSupply = totalSupply(data.tokenId);
-    //     uint256 totalPrice = ICompositePriceModel(data.priceModel).sumPrice(
-    //         currentSupply,
-    //         currentSupply + amount
-    //     );
-
-    //     // TODO refund excess funds
-
-    //     if (creators[data.tokenId] == address(0)) {
-    //         creators[data.tokenId] = data.creator;
-    //         // maxSupplies[data.tokenId] = data.supply;
-    //     } else {
-    //         require(
-    //             creators[data.tokenId] == data.creator,
-    //             "Lazy1155: Creator mismatch"
-    //         );
-    //     }
-
-    //     // Use EIP-712 nonce
-    //     bytes32 structHash = keccak256(
-    //         abi.encode(
-    //             PERMIT_TYPEHASH,
-    //             data.creator,
-    //             data.priceModel, // NEW
-    //             _useNonce(data.creator), // TODO this won't be needed
-    //             data.tokenId,
-    //             data.supply,
-    //             keccak256(bytes(data.uri))
-    //         )
-    //     );
-    //     // Use _hashTypedDataV4
-    //     bytes32 digest = _hashTypedDataV4(structHash);
-
-    //     // Recover signer
-    //     address signer = ECDSA.recover(digest, sig);
-    //     require(signer == data.creator, "Lazy1155: Invalid signature");
-
-    //     // Mint tokens
-    //     _mint(msg.sender, data.tokenId, amount, "");
-    //     _setURI(data.tokenId, data.uri);
-    // }
-
-    /**
      * @notice Mint new ERC1155 token(s) using an EIP-712 signature
      * @param data Struct containing minting data
      * @param v v component of EIP-712 signature
@@ -180,7 +119,7 @@ contract BBB is
      * @param s s component of EIP-712 signature
      */
     function mintPromise(
-        Mint1155Data memory data,
+        MintIntent memory data,
         uint256 amount,
         uint8 v,
         bytes32 r,
@@ -265,27 +204,6 @@ contract BBB is
 
         Address.sendValue(payable(msg.sender), refund);
     }
-
-    // /**
-    //  * @notice Mint new ERC1155 token(s) directly
-    //  * @param data Struct containing minting data
-    //  * @param amount Amount of tokens to mint
-    //  */
-    // function mintDirectly(Mint1155Data memory data, uint256 amount) external {
-    //     require(amount > 0, "Lazy1155: Amount must be > 0");
-    //     require(amount <= data.supply, "Lazy1155: Amount must be <= supply");
-
-    //     require(
-    //         creators[data.tokenId] == address(0),
-    //         "Lazy1155: Token already minted"
-    //     );
-    //     creators[data.tokenId] = data.creator;
-    //     maxSupplies[data.tokenId] = data.supply;
-
-    //     // Mint tokens
-    //     _mint(msg.sender, data.tokenId, amount, "");
-    //     _setURI(data.tokenId, data.uri);
-    // }
 
     // ========== Overrides ==========
 
