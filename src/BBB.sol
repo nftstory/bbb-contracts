@@ -106,7 +106,7 @@ contract BBB is
     {
         if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
 
-        grantRole(MODERATOR_ROLE, _moderator);
+        _grantRole(MODERATOR_ROLE, _moderator);
 
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
@@ -194,11 +194,11 @@ contract BBB is
         uint256 excess = msg.value - price;
 
         if (excess > 0) {
-            Address.sendValue(payable(msg.sender), excess);
+            Address.sendValue(payable(msg.sender), excess); // TODO catch revert 
         }
     }
 
-    function burn(uint256 tokenId, uint256 amount) external {
+    function burn(uint256 tokenId, uint256 amount) external nonReentrant {
         if (!exists(tokenId)) revert TokenDoesNotExist();
         if (amount <= 0) revert InvalidAmount();
         ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
