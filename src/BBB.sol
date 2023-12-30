@@ -124,7 +124,7 @@ contract BBB is
      * @param r r component of EIP-712 signature
      * @param s s component of EIP-712 signature
      */
-    function mintPromise(
+    function mintWithIntent(
         MintIntent memory data,
         uint256 amount,
         uint8 v,
