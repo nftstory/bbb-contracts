@@ -96,7 +96,8 @@ contract BBB is
         address _moderator,
         address _protocolFeeRecipient,
         uint256 _protocolFee,
-        uint256 _creatorFee
+        uint256 _creatorFee,
+        address _initialPriceModel
     )
         ERC1155(_uri)
         EIP712(_name, _signingDomainVersion)
@@ -108,10 +109,12 @@ contract BBB is
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
         creatorFee = _creatorFee;
-
+        allowedpriceModels[_initialPriceModel] = true;
+        
         emit ProtocolFeeChanged(_protocolFee);
         emit CreatorFeeChanged(_creatorFee);
         emit ProtocolFeeRecipientChanged(_protocolFeeRecipient);
+        emit AllowedPriceModelsChanged(_initialPriceModel, true);
     }
 
     /**
