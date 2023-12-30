@@ -14,6 +14,8 @@ import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 
+import { MintIntent } from "./structs/MintIntent.sol";
+
 import { ICompositePriceModel } from "./pricing/interfaces/ICompositePriceModel.sol";
 import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
 
@@ -61,14 +63,6 @@ contract BBB is
     // Typehash for MintIntent
     bytes32 private constant MINTINTENT_TYPEHASH =
         keccak256("MintIntent(address creator,address signer,address priceModel,string uri)");
-    
-    // Struct to hold minting data
-    struct MintIntent {
-        address creator; // The creator fee beneficiary
-        address signer; // The "large blob" signer
-        address priceModel; // The price curve
-        string uri; // The ipfs metadata digest
-    }
 
     // Errors
     error InvalidRole();
@@ -78,6 +72,7 @@ contract BBB is
     error InsufficientFunds();
     error UriAlreadyMinted();
     error InvalidPriceModel();
+    error NoChangeToPriceModelAllowState();
     error InvalidIntent();
     error SignatureError(ECDSA.RecoverError, bytes32);
 
@@ -91,11 +86,13 @@ contract BBB is
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address newProtocolFeeRecipient);
+    event AllowedPriceModelsChanged(address priceModel, bool allowed);
 
     constructor(
         string memory _name,
         string memory _signingDomainVersion,
-        string memory _uri, // Wraps tokenID in a baseURI https://eips.ethereum.org/EIPS/eip-1155#metadata[defined in the EIP]
+        string memory _uri, // Wraps tokenID in a baseURI https://eips.ethereum.org/EIPS/eip-1155#metadata[defined in
+            // the EIP]
         address _moderator,
         address _protocolFeeRecipient,
         uint256 _protocolFee,
@@ -139,14 +136,19 @@ contract BBB is
 
         if (uriToTokenId[data.uri] != 0) revert UriAlreadyMinted();
         if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
-        
+
         // Get the digest of the MintIntent
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(MINTINTENT_TYPEHASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri)))));
-        
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(
+                abi.encode(MINTINTENT_TYPEHASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri)))
+            )
+        );
+
         // Verify that the intent signer == data.signer
         (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
         if (intentSigner == address(0)) revert SignatureError(err, info); // Handle error
-        if (intentSigner != data.signer) revert InvalidIntent(); // Intent signer does not match signer TODO move to try/catch
+        if (intentSigner != data.signer) revert InvalidIntent(); // Intent signer does not match signer TODO move to
+            // try/catch
 
         // Pay fees x2 TODO
 
@@ -194,7 +196,7 @@ contract BBB is
         uint256 excess = msg.value - price;
 
         if (excess > 0) {
-            Address.sendValue(payable(msg.sender), excess); // TODO catch revert 
+            Address.sendValue(payable(msg.sender), excess); // TODO catch revert
         }
     }
 
@@ -207,6 +209,13 @@ contract BBB is
         _burn(msg.sender, tokenId, amount);
 
         Address.sendValue(payable(msg.sender), refund);
+    }
+
+    /// @notice Allows the Moderator to add or remove price models
+    function setAllowedPriceModel(address priceModel, bool allowed) external onlyModerator {
+        if (allowedpriceModels[priceModel] == allowed) revert NoChangeToPriceModelAllowState();
+        allowedpriceModels[priceModel] = allowed;
+        emit AllowedPriceModelsChanged(priceModel, allowed);
     }
 
     // ========== Overrides ==========
