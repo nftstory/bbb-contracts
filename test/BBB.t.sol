@@ -6,6 +6,8 @@ import { console2 } from "forge-std/src/console2.sol";
 import { StdCheats } from "forge-std/src/StdCheats.sol";
 
 import { BBB } from "../src/BBB.sol";
+import { MintIntent } from "../src/structs/MintIntent.sol";
+
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /// @dev If this is your first time with Forge, read this tutorial in the Foundry Book:
@@ -13,24 +15,27 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 contract BBBTest is PRBTest, StdCheats {
     BBB bbb;
 
-    // Instantiate accounts we'll need to test
+    // Constructor arguments
+    string name = "name";
+    string signingDomainVersion = "1";
+    string uri = "demo_uri";
+    uint256 protocolFee = 50;
+    uint256 creatorFee = 50;
+
+    // Accounts needed for tests
     address moderator = makeAddr("moderator");
     address protocolFeeRecipient = makeAddr("protocolFeeRecipient");
     address creator = makeAddr("creator");
     address buyer = makeAddr("buyer");
+    address signer = makeAddr("signer");
+    address priceModel = makeAddr("priceModel"); // TODO replace with an actual priceCurve
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
         // Instantiate the contract-under-test.
-        bbb = new BBB("name", "1", "demo_uri", moderator, protocolFeeRecipient, 50, 50);
-        // string memory _name,
-        // string memory _signingDomainVersion,
-        // string memory _uri, // Wraps tokenID in a baseURI https://eips.ethereum.org/EIPS/eip-1155#metadata[defined in
-        // the EIP]
-        // address _moderator,
-        // address _protocolFeeRecipient,
-        // uint256 _protocolFee,
-        // uint256 _creatorFee
+        bbb = new BBB(
+            name, signingDomainVersion, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee, priceModel
+        );
 
         // Deal ETH to the buyer
         deal(buyer, 1 ether);
@@ -48,9 +53,57 @@ contract BBBTest is PRBTest, StdCheats {
         // Assert that moderator has MODERATOR_ROLE
         assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), moderator), true);
         // Assert that this test contract does not have DEFAULT_ADMIN_ROLE
-        assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(this)) , false);
+        assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(this)), false);
         // Assert that BBB does not have DEFAULT_ADMIN_ROLE
-        assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(bbb)) , false);
+        assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(bbb)), false);
+    }
+
+    function test_mintIntent() external {
+        // MintIntent memory intent = MintIntent({
+        //     creator: creator, // The creator fee beneficiary
+        //     signer: signer, // The "large blob" signer
+        //     priceModel: priceModel, // The price curve
+        //     uri: uri // The ipfs metadata digest
+        //  });
+
+        // (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+        // bbb.eip712Domain(); // Fetch domain from the contract
+
+        string[] memory inputs = new string[](7);
+        inputs[0] = "node test/js-helpers/signData.js";
+        inputs[1] = name;
+        inputs[2] = signingDomainVersion;
+        inputs[3] = vm.toString(block.chainid);
+        inputs[4] = vm.toString(address(bbb));
+        inputs[5] = vm.toString(creator);
+        inputs[6] = vm.toString(priceModel);
+
+        // Call signData.js (via FFI) and pass BBB constructor args to generate the signature we'll verify in the next
+        // step
+        bytes memory signature = vm.ffi(inputs);
+
+        // Extract v, r, s components from the signature
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := mload(add(signature, 32))
+            s := mload(add(signature, 64))
+            v := byte(0, mload(add(signature, 96)))
+        }
+
+        // MintIntent struct data
+        MintIntent memory intent = MintIntent({
+            creator: creator,
+            signer: signer, // TODO confirm this is right value to pass
+            priceModel: priceModel,
+            uri: uri
+        });
+
+        // Call the mintWithIntent function
+        bbb.mintWithIntent(intent, 1, v, r, s);
+
+        // Assertions to verify the test results
     }
 
     // /// @dev Basic test. Run it with `forge test -vvv` to see the console log.

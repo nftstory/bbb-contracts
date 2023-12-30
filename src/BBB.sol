@@ -24,7 +24,7 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title bbb1155
+ * @title bbb
  * @author nftstory
  */
 contract BBB is
