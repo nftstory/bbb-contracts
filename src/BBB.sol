@@ -39,13 +39,15 @@ contract BBB is
     Nonces
 {
     using Address for address;
+    // using ECDSA for bytes32;
+
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
 
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 
     // Configurable
-    address public protocolFeeRecipient;
+    address payable public protocolFeeRecipient;
     uint256 public protocolFeePoints; // 50 = 5%
     uint256 public creatorFee; // 50 = 5%
 
@@ -60,8 +62,9 @@ contract BBB is
     // Maps token IDs to their creators' addresses
     mapping(uint256 => address) public creators;
 
-    // Typehash for MintIntent
-    bytes32 private constant MINTINTENT_TYPEHASH =
+    // Typehash for EIP-712 MintIntent
+    // TODO Make private? Made public to use it in the test.
+    bytes32 public constant MINTINTENT_TYPEHASH =
         keccak256("MintIntent(address creator,address signer,address priceModel,string uri)");
 
     // Errors
@@ -94,7 +97,7 @@ contract BBB is
         string memory _uri, // Wraps tokenID in a baseURI https://eips.ethereum.org/EIPS/eip-1155#metadata[defined in
             // the EIP]
         address _moderator,
-        address _protocolFeeRecipient,
+        address payable _protocolFeeRecipient,
         uint256 _protocolFee,
         uint256 _creatorFee,
         address _initialPriceModel
@@ -110,7 +113,7 @@ contract BBB is
         protocolFeePoints = _protocolFee;
         creatorFee = _creatorFee;
         allowedpriceModels[_initialPriceModel] = true;
-        
+
         emit ProtocolFeeChanged(_protocolFee);
         emit CreatorFeeChanged(_creatorFee);
         emit ProtocolFeeRecipientChanged(_protocolFeeRecipient);
@@ -140,27 +143,32 @@ contract BBB is
         if (uriToTokenId[data.uri] != 0) revert UriAlreadyMinted();
         if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
 
+        // EIP-712 recovery
+        // See also https://docs.openzeppelin.com/contracts/4.x/api/utils#EIP712-_domainSeparatorV4--,
+        // https://book.getfoundry.sh/cheatcodes/sign
+        // https://viem.sh/docs/actions/wallet/signTypedData.html
+        // https://github.com/MetaMask/eth-sig-util/tree/main
+
         // Get the digest of the MintIntent
         bytes32 digest = _hashTypedDataV4(
             keccak256(
                 abi.encode(MINTINTENT_TYPEHASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri)))
-            )
+            )   
         );
 
         // Verify that the intent signer == data.signer
-        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
-        if (intentSigner == address(0)) revert SignatureError(err, info); // Handle error
+        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s); // TODO
+            // Replace ECDSA.tryRecover with SignatureChecker.isValidSignatureNow which adds 1271 compatibility
+        if (intentSigner == address(0)) revert SignatureError(err, info); // Handle error, tryRecover returns address(0)
+            // on error
         if (intentSigner != data.signer) revert InvalidIntent(); // Intent signer does not match signer TODO move to
             // try/catch
-
-        // Pay fees x2 TODO
 
         ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
 
         uint256 price = priceModel.sumPrice(0, amount);
         if (msg.value < price) revert InsufficientFunds();
 
-        // option b) full 6492 reliance - deploy the smart account when purchased
         uint256 tokenId = ++totalNumberOfTokenIds; // TODO check
 
         creators[tokenId] = data.creator;
@@ -170,6 +178,12 @@ contract BBB is
         // Mint tokens
         _mint(msg.sender, tokenId, amount, "");
         _setURI(tokenId, data.uri);
+
+        // Pay protocol fees
+        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
+
+        // Pay creator fees
+        Address.sendValue(payable(data.creator), price * creatorFee / 1000);
     }
 
     /**

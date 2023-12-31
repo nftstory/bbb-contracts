@@ -9,33 +9,36 @@ import { BBB } from "../src/BBB.sol";
 import { MintIntent } from "../src/structs/MintIntent.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 /// @dev If this is your first time with Forge, read this tutorial in the Foundry Book:
 /// https://book.getfoundry.sh/forge/writing-tests
+
 contract BBBTest is PRBTest, StdCheats {
     BBB bbb;
 
     // Constructor arguments
     string name = "name";
-    string signingDomainVersion = "1";
+    string version = "1";
     string uri = "demo_uri";
     uint256 protocolFee = 50;
     uint256 creatorFee = 50;
 
     // Accounts needed for tests
     address moderator = makeAddr("moderator");
-    address protocolFeeRecipient = makeAddr("protocolFeeRecipient");
+    address payable protocolFeeRecipient = payable(makeAddr("protocolFeeRecipient"));
     address creator = makeAddr("creator");
     address buyer = makeAddr("buyer");
-    address signer = makeAddr("signer");
+    address signer;
+    uint256 signerPk;
     address priceModel = makeAddr("priceModel"); // TODO replace with an actual priceCurve
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
+        // Assign signer an address and pk
+        (signer, signerPk) = makeAddrAndKey("signer");
+
         // Instantiate the contract-under-test.
-        bbb = new BBB(
-            name, signingDomainVersion, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee, priceModel
-        );
+        bbb = new BBB(name, version, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee, priceModel);
 
         // Deal ETH to the buyer
         deal(buyer, 1 ether);
@@ -58,7 +61,52 @@ contract BBBTest is PRBTest, StdCheats {
         assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(bbb)), false);
     }
 
-    function test_mintIntent() external {
+    // Example signature recovery test from Forge vm.sign
+    // https://book.getfoundry.sh/cheatcodes/sign
+    function test_sign() external {
+        bytes32 hash = keccak256("Signed by Signer");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);
+        address recoveredSigner = ecrecover(hash, v, r, s);
+        assertEq(signer, recoveredSigner); // [PASS]
+    }
+
+    function test_mint_with_intent() external {
+        console2.log("Signer address: ", signer);
+        uint256 amount = 1;
+        MintIntent memory data = MintIntent({ creator: creator, signer: signer, priceModel: priceModel, uri: uri });
+
+        // Create the digest of the MintIntent. We recreate this here manually because the contract-under-test uses it's
+        // inherited EIP712 to do this logic, and it's functions and vars are internal and private.
+        bytes32 bbbDomainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                block.chainid,
+                address(bbb)
+            )
+        );
+        bytes32 digest = MessageHashUtils.toTypedDataHash(
+            bbbDomainSeparator,
+            keccak256(
+                abi.encode(
+                    bbb.MINTINTENT_TYPEHASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
+                )
+            )
+        );
+
+        // Sign the digest with the signer's PK
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+
+        // Become the buyer
+        vm.startPrank(buyer);
+        // Mint with intent
+        bbb.mintWithIntent(data, 1, v, r, s);
+        vm.stopPrank();
+    }
+
+/**
+    function test_mintWithIntent() external {
         // MintIntent memory intent = MintIntent({
         //     creator: creator, // The creator fee beneficiary
         //     signer: signer, // The "large blob" signer
@@ -72,7 +120,7 @@ contract BBBTest is PRBTest, StdCheats {
         string[] memory inputs = new string[](7);
         inputs[0] = "node test/js-helpers/signData.js";
         inputs[1] = name;
-        inputs[2] = signingDomainVersion;
+        inputs[2] = version;
         inputs[3] = vm.toString(block.chainid);
         inputs[4] = vm.toString(address(bbb));
         inputs[5] = vm.toString(creator);
@@ -105,6 +153,7 @@ contract BBBTest is PRBTest, StdCheats {
 
         // Assertions to verify the test results
     }
+    */
 
     // /// @dev Basic test. Run it with `forge test -vvv` to see the console log.
     // function test_Example() external {
