@@ -79,13 +79,24 @@ contract BBBTest is PRBTest, StdCheats {
         // inherited EIP712 to do this logic, and it's functions and vars are internal and private.
         bytes32 bbbDomainSeparator = keccak256(
             abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                hex"0f", // 01111
                 keccak256(bytes(name)),
                 keccak256(bytes(version)),
                 block.chainid,
                 address(bbb)
             )
         );
+
+        console2.log("bbb's 712 domain: ");
+        (bytes1 _fields, string memory _name, string memory _version, uint256 _chainId, address _verifyingContract,,) =
+            bbb.eip712Domain();
+        console2.log(
+            string(abi.encode((keccak256(abi.encodePacked(_fields, _name, _version, _chainId, _verifyingContract)))))
+        );
+
+        console2.log("test's domain: ");
+        console2.log(string(abi.encode(bbbDomainSeparator)));
+        
         bytes32 digest = MessageHashUtils.toTypedDataHash(
             bbbDomainSeparator,
             keccak256(
@@ -105,55 +116,56 @@ contract BBBTest is PRBTest, StdCheats {
         vm.stopPrank();
     }
 
-/**
-    function test_mintWithIntent() external {
-        // MintIntent memory intent = MintIntent({
-        //     creator: creator, // The creator fee beneficiary
-        //     signer: signer, // The "large blob" signer
-        //     priceModel: priceModel, // The price curve
-        //     uri: uri // The ipfs metadata digest
-        //  });
-
-        // (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
-        // bbb.eip712Domain(); // Fetch domain from the contract
-
-        string[] memory inputs = new string[](7);
-        inputs[0] = "node test/js-helpers/signData.js";
-        inputs[1] = name;
-        inputs[2] = version;
-        inputs[3] = vm.toString(block.chainid);
-        inputs[4] = vm.toString(address(bbb));
-        inputs[5] = vm.toString(creator);
-        inputs[6] = vm.toString(priceModel);
-
-        // Call signData.js (via FFI) and pass BBB constructor args to generate the signature we'll verify in the next
-        // step
-        bytes memory signature = vm.ffi(inputs);
-
-        // Extract v, r, s components from the signature
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-        assembly {
-            r := mload(add(signature, 32))
-            s := mload(add(signature, 64))
-            v := byte(0, mload(add(signature, 96)))
-        }
-
-        // MintIntent struct data
-        MintIntent memory intent = MintIntent({
-            creator: creator,
-            signer: signer, // TODO confirm this is right value to pass
-            priceModel: priceModel,
-            uri: uri
-        });
-
-        // Call the mintWithIntent function
-        bbb.mintWithIntent(intent, 1, v, r, s);
-
-        // Assertions to verify the test results
-    }
-    */
+    /**
+     * function test_mintWithIntent() external {
+     *     // MintIntent memory intent = MintIntent({
+     *     //     creator: creator, // The creator fee beneficiary
+     *     //     signer: signer, // The "large blob" signer
+     *     //     priceModel: priceModel, // The price curve
+     *     //     uri: uri // The ipfs metadata digest
+     *     //  });
+     *
+     *     // (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+     *     // bbb.eip712Domain(); // Fetch domain from the contract
+     *
+     *     string[] memory inputs = new string[](7);
+     *     inputs[0] = "node test/js-helpers/signData.js";
+     *     inputs[1] = name;
+     *     inputs[2] = version;
+     *     inputs[3] = vm.toString(block.chainid);
+     *     inputs[4] = vm.toString(address(bbb));
+     *     inputs[5] = vm.toString(creator);
+     *     inputs[6] = vm.toString(priceModel);
+     *
+     *     // Call signData.js (via FFI) and pass BBB constructor args to generate the signature we'll verify in the
+     * next
+     *     // step
+     *     bytes memory signature = vm.ffi(inputs);
+     *
+     *     // Extract v, r, s components from the signature
+     *     bytes32 r;
+     *     bytes32 s;
+     *     uint8 v;
+     *     assembly {
+     *         r := mload(add(signature, 32))
+     *         s := mload(add(signature, 64))
+     *         v := byte(0, mload(add(signature, 96)))
+     *     }
+     *
+     *     // MintIntent struct data
+     *     MintIntent memory intent = MintIntent({
+     *         creator: creator,
+     *         signer: signer, // TODO confirm this is right value to pass
+     *         priceModel: priceModel,
+     *         uri: uri
+     *     });
+     *
+     *     // Call the mintWithIntent function
+     *     bbb.mintWithIntent(intent, 1, v, r, s);
+     *
+     *     // Assertions to verify the test results
+     * }
+     */
 
     // /// @dev Basic test. Run it with `forge test -vvv` to see the console log.
     // function test_Example() external {
