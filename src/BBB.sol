@@ -13,8 +13,9 @@ import { ERC1155Burnable } from "@openzeppelin/contracts/token/ERC1155/extension
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-import { MintIntent } from "./structs/MintIntent.sol";
+import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
 
 import { ICompositePriceModel } from "./pricing/interfaces/ICompositePriceModel.sol";
 import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
@@ -22,6 +23,8 @@ import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+import { console2 } from "forge-std/src/console2.sol"; // TODO Remove
 
 /**
  * @title bbb
@@ -61,11 +64,6 @@ contract BBB is
 
     // Maps token IDs to their creators' addresses
     mapping(uint256 => address) public creators;
-
-    // Typehash for EIP-712 MintIntent
-    // TODO Make private? Made public to use it in the test.
-    bytes32 public constant MINTINTENT_TYPEHASH =
-        keccak256("MintIntent(address creator,address signer,address priceModel,string uri)");
 
     // Errors
     error InvalidRole();
@@ -152,22 +150,37 @@ contract BBB is
         // Get the digest of the MintIntent
         bytes32 digest = _hashTypedDataV4(
             keccak256(
-                abi.encode(MINTINTENT_TYPEHASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri)))
-            )   
+                abi.encode(
+                    MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
+                )
+            )
         );
 
-        // Verify that the intent signer == data.signer
-        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s); // TODO
-            // Replace ECDSA.tryRecover with SignatureChecker.isValidSignatureNow which adds 1271 compatibility
+        // Confirm that the intent signer == data.signer
+        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
+        // TODO
+        // Replace ECDSA.tryRecover with SignatureChecker.isValidSignatureNow which adds 1271 compatibility
+        SignatureChecker.isValidSignatureNow(intentSigner, digest, signature);
+
+        console2.log("intentSigner is ", intentSigner); // TODO Remove
+        console2.log("data.signer is ", data.signer); // TODO Remove
         if (intentSigner == address(0)) revert SignatureError(err, info); // Handle error, tryRecover returns address(0)
             // on error
         if (intentSigner != data.signer) revert InvalidIntent(); // Intent signer does not match signer TODO move to
             // try/catch
 
-        ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
 
-        uint256 price = priceModel.sumPrice(0, amount);
-        if (msg.value < price) revert InsufficientFunds();
+        // TODO uncomment price logic
+        // ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
+
+        // uint256 price = priceModel.sumPrice(0, amount);
+        // if (msg.value < price) revert InsufficientFunds();
+
+        // Pay protocol fees
+        // Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
+
+        // Pay creator fees
+        // Address.sendValue(payable(data.creator), price * creatorFee / 1000);
 
         uint256 tokenId = ++totalNumberOfTokenIds; // TODO check
 
@@ -178,12 +191,6 @@ contract BBB is
         // Mint tokens
         _mint(msg.sender, tokenId, amount, "");
         _setURI(tokenId, data.uri);
-
-        // Pay protocol fees
-        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
-
-        // Pay creator fees
-        Address.sendValue(payable(data.creator), price * creatorFee / 1000);
     }
 
     /**
@@ -199,16 +206,15 @@ contract BBB is
         uint256 currentSupply = totalSupply(tokenId);
         uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
         if (msg.value < price) revert InsufficientFunds();
-        // We have to verify that the intent signer == data.signer TODO
-        // We need to store the data.creator in the creators mapping ✅
-        // We need to store the price model ✅
-        // We need to compute the price from the curve ✅
-        // We need to store the uri ✅
-        // _mint the nft ✅
-        // Pay fees x2 TODO
 
         // Mint tokens
         _mint(msg.sender, tokenId, amount, "");
+
+        // Pay protocol fees
+        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
+
+        // Pay creator fees
+        Address.sendValue(payable(creators[tokenId]), price * creatorFee / 1000);
 
         uint256 excess = msg.value - price;
 
@@ -235,6 +241,19 @@ contract BBB is
         emit AllowedPriceModelsChanged(priceModel, allowed);
     }
 
+    // Expose the domain separator to facilitate testing
+    function domainSeparatorV4() external view returns (bytes32) {
+        _domainSeparatorV4();
+    }
+
+    // // STILL IN CONSIDERATION
+    // function pause() external onlyRole(MODERATOR_ROLE) {
+    //     _pause();
+    // }
+
+    // function unpause() external onlyRole(MODERATOR_ROLE) {
+    //     _unpause();
+    // }
     // ========== Overrides ==========
 
     function uri(uint256 tokenId) public view override(ERC1155, ERC1155URIStorage) returns (string memory) {
@@ -250,16 +269,8 @@ contract BBB is
         internal
         override(ERC1155, ERC1155Supply)
     {
+        // TODO just revert and don't call super -- no one needs to this power
         super._update(from, to, ids, values);
-    }
-
-    // STILL IN CONSIDERATION
-    function pause() external onlyRole(MODERATOR_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(MODERATOR_ROLE) {
-        _unpause();
     }
 
     function supportsInterface(bytes4 interfaceId)

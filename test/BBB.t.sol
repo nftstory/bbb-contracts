@@ -6,9 +6,11 @@ import { console2 } from "forge-std/src/console2.sol";
 import { StdCheats } from "forge-std/src/StdCheats.sol";
 
 import { BBB } from "../src/BBB.sol";
-import { MintIntent } from "../src/structs/MintIntent.sol";
+import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH } from "../src/structs/MintIntent.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 /// @dev If this is your first time with Forge, read this tutorial in the Foundry Book:
 /// https://book.getfoundry.sh/forge/writing-tests
@@ -41,7 +43,7 @@ contract BBBTest is PRBTest, StdCheats {
         bbb = new BBB(name, version, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee, priceModel);
 
         // Deal ETH to the buyer
-        deal(buyer, 1 ether);
+        deal(buyer, 2 ether);
     }
 
     function test_roles_assigned_correctly() external {
@@ -72,47 +74,40 @@ contract BBBTest is PRBTest, StdCheats {
 
     function test_mint_with_intent() external {
         console2.log("Signer address: ", signer);
+        console2.log("Buyer address: ", buyer);
         uint256 amount = 1;
+        uint256 value = 1 ether;
         MintIntent memory data = MintIntent({ creator: creator, signer: signer, priceModel: priceModel, uri: uri });
 
         // Create the digest of the MintIntent. We recreate this here manually because the contract-under-test uses it's
         // inherited EIP712 to do this logic, and it's functions and vars are internal and private.
-        bytes32 bbbDomainSeparator = keccak256(
-            abi.encode(
-                hex"0f", // 01111
-                keccak256(bytes(name)),
-                keccak256(bytes(version)),
-                block.chainid,
-                address(bbb)
-            )
-        );
+        // bytes32 bbbDomainSeparator = keccak256(
+        //     abi.encode(
+        //         hex"0f", // 01111
+        //         keccak256(bytes(name)),
+        //         keccak256(bytes(version)),
+        //         block.chainid,
+        //         address(bbb)
+        //     )
+        // );
 
-        console2.log("bbb's 712 domain: ");
-        (bytes1 _fields, string memory _name, string memory _version, uint256 _chainId, address _verifyingContract,,) =
-            bbb.eip712Domain();
-        console2.log(
-            string(abi.encode((keccak256(abi.encodePacked(_fields, _name, _version, _chainId, _verifyingContract)))))
-        );
-
-        console2.log("test's domain: ");
-        console2.log(string(abi.encode(bbbDomainSeparator)));
-        
         bytes32 digest = MessageHashUtils.toTypedDataHash(
-            bbbDomainSeparator,
+            bbb.domainSeparatorV4(),
             keccak256(
                 abi.encode(
-                    bbb.MINTINTENT_TYPEHASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
+                    MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
                 )
             )
         );
 
         // Sign the digest with the signer's PK
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
-
+        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s); // TODO
+        assertEq(intentSigner, signer);
         // Become the buyer
         vm.startPrank(buyer);
         // Mint with intent
-        bbb.mintWithIntent(data, 1, v, r, s);
+        bbb.mintWithIntent{ value: value }(data, 1, v, r, s);
         vm.stopPrank();
     }
 
