@@ -160,8 +160,9 @@ contract BBB is
         (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
         // TODO
         // Replace ECDSA.tryRecover with SignatureChecker.isValidSignatureNow which adds 1271 compatibility
-        SignatureChecker.isValidSignatureNow(intentSigner, digest, signature);
+        // SignatureChecker.isValidSignatureNow(intentSigner, digest, signature);
 
+       
         console2.log("intentSigner is ", intentSigner); // TODO Remove
         console2.log("data.signer is ", data.signer); // TODO Remove
         if (intentSigner == address(0)) revert SignatureError(err, info); // Handle error, tryRecover returns address(0)
@@ -243,6 +244,7 @@ contract BBB is
 
     // Expose the domain separator to facilitate testing
     function domainSeparatorV4() external view returns (bytes32) {
+         console2.log("bbb says: ", address(this));
         _domainSeparatorV4();
     }
 

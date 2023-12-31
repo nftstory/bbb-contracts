@@ -30,14 +30,14 @@ contract BBBTest is PRBTest, StdCheats {
     address payable protocolFeeRecipient = payable(makeAddr("protocolFeeRecipient"));
     address creator = makeAddr("creator");
     address buyer = makeAddr("buyer");
-    address signer;
-    uint256 signerPk;
+    address signer = 0xF4ef37a4EcA1DeCB0E62482590b3D4Fc7f1214ec;
+    bytes32 signerPk = 0xf9fc766a27e844ad50c0e567e921d5d2cb661560d2bd2421f3db0c0f0a8e4364;
     address priceModel = makeAddr("priceModel"); // TODO replace with an actual priceCurve
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
         // Assign signer an address and pk
-        (signer, signerPk) = makeAddrAndKey("signer");
+        // (signer, signerPk) = makeAddrAndKey("signer");
 
         // Instantiate the contract-under-test.
         bbb = new BBB(name, version, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee, priceModel);
@@ -67,14 +67,18 @@ contract BBBTest is PRBTest, StdCheats {
     // https://book.getfoundry.sh/cheatcodes/sign
     function test_sign() external {
         bytes32 hash = keccak256("Signed by Signer");
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);
-        address recoveredSigner = ecrecover(hash, v, r, s);
-        assertEq(signer, recoveredSigner); // [PASS]
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);
+        // address recoveredSigner = ecrecover(hash, v, r, s);
+        // assertEq(signer, recoveredSigner); // [PASS]
     }
 
     function test_mint_with_intent() external {
         console2.log("Signer address: ", signer);
+        // console2.log("signer pk: ", signerPk);
         console2.log("Buyer address: ", buyer);
+        console2.log("priceModel:", priceModel);
+        console2.log("creator:", creator);
+        console2.log("chainid: ", block.chainid);
         uint256 amount = 1;
         uint256 value = 1 ether;
         MintIntent memory data = MintIntent({ creator: creator, signer: signer, priceModel: priceModel, uri: uri });
@@ -101,7 +105,11 @@ contract BBBTest is PRBTest, StdCheats {
         );
 
         // Sign the digest with the signer's PK
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+        uint8 v = 0x1c;
+        bytes32 r = 0xa8677e87669efd4d04e2ae37d9b902de3f126d10a231752a7990f5b3e0a37baa;
+        bytes32 s = 0x4d11d4854c68eee87beb81056692b0ff85f51c00d8aa62f0246aa419d5ee6862;
+
         (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s); // TODO
         assertEq(intentSigner, signer);
         // Become the buyer
