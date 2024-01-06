@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
+import { console2 } from "forge-std/src/console2.sol";
+
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
@@ -104,6 +106,7 @@ contract BBB is
         EIP712(_name, _signingDomainVersion)
     {
         if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
+        if (_moderator == address(0)) revert InvalidAddress();
 
         _grantRole(MODERATOR_ROLE, _moderator);
 
@@ -121,16 +124,13 @@ contract BBB is
     /**
      * @notice Mint new ERC1155 token(s) using an EIP-712 signature
      * @param data Struct containing minting data
-     * @param v v component of EIP-712 signature
-     * @param r r component of EIP-712 signature
-     * @param s s component of EIP-712 signature
+     * @param amount Amount of tokens to mint
+     * @param signature EIP-712 signature
      */
     function mintWithIntent(
         MintIntent memory data,
         uint256 amount,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes memory signature
     )
         external
         payable
@@ -157,18 +157,17 @@ contract BBB is
         );
 
         // Confirm that the intent signer == data.signer
-        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
-        // TODO
+        // (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
+        
+        // if (!SignatureChecker.isValidSignatureNow(data.signer, digest, signature)) revert InvalidIntent();
+        (address recovered, ECDSA.RecoverError error, ) = ECDSA.tryRecover(digest, signature);
+        console2.log("recovered: ", recovered);
+        console2.log("error: ", uint256(error));
+        require(recovered == data.signer, "InvalidIntent");
+        
+
         // Replace ECDSA.tryRecover with SignatureChecker.isValidSignatureNow which adds 1271 compatibility
         // SignatureChecker.isValidSignatureNow(intentSigner, digest, signature);
-
-       
-        console2.log("intentSigner is ", intentSigner); // TODO Remove
-        console2.log("data.signer is ", data.signer); // TODO Remove
-        if (intentSigner == address(0)) revert SignatureError(err, info); // Handle error, tryRecover returns address(0)
-            // on error
-        if (intentSigner != data.signer) revert InvalidIntent(); // Intent signer does not match signer TODO move to
-            // try/catch
 
 
         // TODO uncomment price logic
@@ -244,8 +243,8 @@ contract BBB is
 
     // Expose the domain separator to facilitate testing
     function domainSeparatorV4() external view returns (bytes32) {
-         console2.log("bbb says: ", address(this));
-        _domainSeparatorV4();
+        console2.log("bbb says: ", address(this));
+        super._domainSeparatorV4();
     }
 
     // // STILL IN CONSIDERATION

@@ -30,15 +30,19 @@ contract BBBTest is PRBTest, StdCheats {
     address payable protocolFeeRecipient = payable(makeAddr("protocolFeeRecipient"));
     address creator = makeAddr("creator");
     address buyer = makeAddr("buyer");
-    address signer = 0xF4ef37a4EcA1DeCB0E62482590b3D4Fc7f1214ec;
-    bytes32 signerPk = 0xf9fc766a27e844ad50c0e567e921d5d2cb661560d2bd2421f3db0c0f0a8e4364;
+    // address signer = 0xF4ef37a4EcA1DeCB0E62482590b3D4Fc7f1214ec;
+    address signer;
+    // bytes32 signerPk = 0xf9fc766a27e844ad50c0e567e921d5d2cb661560d2bd2421f3db0c0f0a8e4364;
+    // uint256 signerPk = 113071962025583480559611482528073794879019954380499915552367164943375860122468;
+    uint256 signerPk;
     address priceModel = makeAddr("priceModel"); // TODO replace with an actual priceCurve
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
         // Assign signer an address and pk
-        // (signer, signerPk) = makeAddrAndKey("signer");
-
+        (signer, signerPk) = makeAddrAndKey("signer");
+        console2.log(signer);
+        console2.log(signerPk);
         // Instantiate the contract-under-test.
         bbb = new BBB(name, version, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee, priceModel);
 
@@ -65,11 +69,22 @@ contract BBBTest is PRBTest, StdCheats {
 
     // Example signature recovery test from Forge vm.sign
     // https://book.getfoundry.sh/cheatcodes/sign
-    function test_sign() external {
-        bytes32 hash = keccak256("Signed by Signer");
-        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);
+    function test_sign_vrs() external {
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, MintIntent({ creator: creator, signer: signer, priceModel: priceModel, uri: uri }));
+
+        // Recover signer address
+        address recoveredSigner = ECDSA.recover(digest, v, r, s);
         // address recoveredSigner = ecrecover(hash, v, r, s);
-        // assertEq(signer, recoveredSigner); // [PASS]
+        assertEq(signer, recoveredSigner); // [PASS]
+    }
+
+    function test_sign_signature() external {
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, MintIntent({ creator: creator, signer: signer, priceModel: priceModel, uri: uri }));
+        bytes memory signature = toBytesSignature(v, r, s);
+        // Recover signer address
+        address recoveredSigner = ECDSA.recover(digest, signature);
+        // address recoveredSigner = ecrecover(hash, v, r, s);
+        assertEq(signer, recoveredSigner); // [PASS]
     }
 
     function test_mint_with_intent() external {
@@ -81,6 +96,7 @@ contract BBBTest is PRBTest, StdCheats {
         console2.log("chainid: ", block.chainid);
         uint256 amount = 1;
         uint256 value = 1 ether;
+
         MintIntent memory data = MintIntent({ creator: creator, signer: signer, priceModel: priceModel, uri: uri });
 
         // Create the digest of the MintIntent. We recreate this here manually because the contract-under-test uses it's
@@ -95,27 +111,30 @@ contract BBBTest is PRBTest, StdCheats {
         //     )
         // );
 
-        bytes32 digest = MessageHashUtils.toTypedDataHash(
-            bbb.domainSeparatorV4(),
-            keccak256(
-                abi.encode(
-                    MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
-                )
-            )
-        );
+        // bytes32 digest = MessageHashUtils.toTypedDataHash(
+        //     bbb.domainSeparatorV4(),
+        //     keccak256(
+        //         abi.encode(
+        //             MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
+        //         )
+        //     )
+        // );
 
         // Sign the digest with the signer's PK
         // (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
-        uint8 v = 0x1c;
-        bytes32 r = 0xa8677e87669efd4d04e2ae37d9b902de3f126d10a231752a7990f5b3e0a37baa;
-        bytes32 s = 0x4d11d4854c68eee87beb81056692b0ff85f51c00d8aa62f0246aa419d5ee6862;
+        // uint8 v = 0x1c;
+        // bytes32 r = 0xa8677e87669efd4d04e2ae37d9b902de3f126d10a231752a7990f5b3e0a37baa;
+        // bytes32 s = 0x4d11d4854c68eee87beb81056692b0ff85f51c00d8aa62f0246aa419d5ee6862;
 
-        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s); // TODO
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+        bytes memory signature = toBytesSignature(v, r, s);
+
+        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, signature); // TODO
         assertEq(intentSigner, signer);
         // Become the buyer
         vm.startPrank(buyer);
         // Mint with intent
-        bbb.mintWithIntent{ value: value }(data, 1, v, r, s);
+        bbb.mintWithIntent{ value: value }(data, 1, signature);
         vm.stopPrank();
     }
 
@@ -203,4 +222,41 @@ contract BBBTest is PRBTest, StdCheats {
     //     uint256 expectedBalance = 196_307_713.810457e6;
     //     assertEq(actualBalance, expectedBalance);
     // }
+
+
+    // ChatGPT4
+    function toBytesSignature(uint8 v, bytes32 r, bytes32 s) public pure returns (bytes memory) {
+        return abi.encodePacked(r, s, v);
+    }
+
+
+    function getSignatureAndDigest(
+            uint256 privateKey,
+            MintIntent memory data
+        )
+            public
+            view
+            // returns (bytes memory)
+            returns (uint8, bytes32, bytes32, bytes32)
+        {
+            // uint256 nonce = 0;
+            // bytes32 hashStruct = keccak256(abi.encode(MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))));
+            // bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashStruct));
+            bytes32 digest = MessageHashUtils.toTypedDataHash(
+                bbb.domainSeparatorV4(),
+                keccak256(
+                    abi.encode(
+                        MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
+                    )
+                )
+            );
+            
+
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+            return (v, r, s, digest);
+            // bytes memory signature = toBytesSignature(v, r, s);
+            // return signature;
+        }
+
+        
 }
