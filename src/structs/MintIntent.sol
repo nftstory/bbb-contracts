@@ -14,3 +14,6 @@ bytes constant MINT_INTENT_ENCODE_TYPE = "MintIntent(address creator,address sig
 
 // Typehash
 bytes32 constant MINT_INTENT_TYPE_HASH = keccak256(MINT_INTENT_ENCODE_TYPE);
+
+// EIP712 Domain
+bytes32 constant EIP712_DOMAIN = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");

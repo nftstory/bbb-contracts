@@ -17,7 +17,7 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
+import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN } from "./structs/MintIntent.sol";
 
 import { ICompositePriceModel } from "./pricing/interfaces/ICompositePriceModel.sol";
 import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
@@ -156,6 +156,8 @@ contract BBB is
             )
         );
 
+        console2.log("digest 2:", uint256(digest));
+
         // Confirm that the intent signer == data.signer
         // (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
         
@@ -241,11 +243,7 @@ contract BBB is
         emit AllowedPriceModelsChanged(priceModel, allowed);
     }
 
-    // Expose the domain separator to facilitate testing
-    function domainSeparatorV4() external view returns (bytes32) {
-        console2.log("bbb says: ", address(this));
-        super._domainSeparatorV4();
-    }
+
 
     // // STILL IN CONSIDERATION
     // function pause() external onlyRole(MODERATOR_ROLE) {

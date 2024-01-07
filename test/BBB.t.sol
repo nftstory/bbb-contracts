@@ -6,7 +6,7 @@ import { console2 } from "forge-std/src/console2.sol";
 import { StdCheats } from "forge-std/src/StdCheats.sol";
 
 import { BBB } from "../src/BBB.sol";
-import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH } from "../src/structs/MintIntent.sol";
+import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN } from "../src/structs/MintIntent.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -229,6 +229,10 @@ contract BBBTest is PRBTest, StdCheats {
         return abi.encodePacked(r, s, v);
     }
 
+    function _buildDomainSeparator() private view returns (bytes32) {
+        return keccak256(abi.encode(EIP712_DOMAIN, keccak256(bytes(name)), keccak256(bytes(version)), block.chainid, address(bbb)));
+    }
+
 
     function getSignatureAndDigest(
             uint256 privateKey,
@@ -243,14 +247,15 @@ contract BBBTest is PRBTest, StdCheats {
             // bytes32 hashStruct = keccak256(abi.encode(MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))));
             // bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashStruct));
             bytes32 digest = MessageHashUtils.toTypedDataHash(
-                bbb.domainSeparatorV4(),
+                _buildDomainSeparator(),
                 keccak256(
                     abi.encode(
                         MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
                     )
                 )
             );
-            
+            console2.log("domainSep 1: ", uint256(_buildDomainSeparator()));
+            console2.log("digest 1: ", uint256(digest));
 
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
             return (v, r, s, digest);
