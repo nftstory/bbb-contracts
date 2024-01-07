@@ -99,8 +99,7 @@ contract BBB is
         address _moderator,
         address payable _protocolFeeRecipient,
         uint256 _protocolFee,
-        uint256 _creatorFee,
-        address _initialPriceModel
+        uint256 _creatorFee
     )
         ERC1155(_uri)
         EIP712(_name, _signingDomainVersion)
@@ -113,12 +112,15 @@ contract BBB is
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
         creatorFee = _creatorFee;
+        address _initialPriceModel = address(new MyCompositePriceModel(0, 1));
         allowedpriceModels[_initialPriceModel] = true;
 
         emit ProtocolFeeChanged(_protocolFee);
         emit CreatorFeeChanged(_creatorFee);
         emit ProtocolFeeRecipientChanged(_protocolFeeRecipient);
         emit AllowedPriceModelsChanged(_initialPriceModel, true);
+
+        console2.log("_initialPriceModel: ", _initialPriceModel);
     }
 
     /**
@@ -155,36 +157,24 @@ contract BBB is
                 )
             )
         );
-
-        console2.log("digest 2:", uint256(digest));
-
-        // Confirm that the intent signer == data.signer
-        // (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
         
-        // if (!SignatureChecker.isValidSignatureNow(data.signer, digest, signature)) revert InvalidIntent();
-        (address recovered, ECDSA.RecoverError error, ) = ECDSA.tryRecover(digest, signature);
-        console2.log("recovered: ", recovered);
-        console2.log("error: ", uint256(error));
-        require(recovered == data.signer, "InvalidIntent");
-        
+        // Recover the signer of the MintIntent
+        if (!SignatureChecker.isValidSignatureNow(data.signer, digest, signature)) revert InvalidIntent();
 
-        // Replace ECDSA.tryRecover with SignatureChecker.isValidSignatureNow which adds 1271 compatibility
-        // SignatureChecker.isValidSignatureNow(intentSigner, digest, signature);
-
-
-        // TODO uncomment price logic
-        // ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
+        // Pricing logic
+        ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
 
         // uint256 price = priceModel.sumPrice(0, amount);
-        // if (msg.value < price) revert InsufficientFunds();
+        uint256 price = priceModel.cumulativePrice(amount);
+        if (msg.value < price) revert InsufficientFunds();
 
         // Pay protocol fees
-        // Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
+        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
 
         // Pay creator fees
-        // Address.sendValue(payable(data.creator), price * creatorFee / 1000);
+        Address.sendValue(payable(data.creator), price * creatorFee / 1000);
 
-        uint256 tokenId = ++totalNumberOfTokenIds; // TODO check
+        uint256 tokenId = ++totalNumberOfTokenIds;
 
         creators[tokenId] = data.creator;
         tokenIdTopriceModel[tokenId] = data.priceModel;
