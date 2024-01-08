@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.23 <0.9.0;
 
-import { PRBTest } from "@prb/test/src/PRBTest.sol";
 import { console2 } from "forge-std/src/console2.sol";
+import { Test } from "forge-std/src/Test.sol";
 import { StdCheats, Vm } from "forge-std/src/StdCheats.sol";
 import { Vm } from "forge-std/src/Vm.sol";
 
@@ -11,13 +11,13 @@ import {
     MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN
 } from "../src/structs/MintIntent.sol";
 
-import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-contract BBBTest is PRBTest, StdCheats {
+contract BBBTest is StdCheats, Test {
     event AllowedPriceModelsChanged(address priceModel, bool allowed);
 
     BBB bbb;
@@ -32,10 +32,10 @@ contract BBBTest is PRBTest, StdCheats {
     address initialPriceModel;
 
     // Accounts needed for tests
-    address moderator = makeAddr("moderator");
+    address moderator = 0x1e2820Ea609681A9617d9984dC6188d3c5Ca09cF;
     address payable protocolFeeRecipient = payable(makeAddr("protocolFeeRecipient"));
-    address creator = makeAddr("creator");
-    address buyer = makeAddr("buyer");
+    address creator = 0x0cA6761BC0C1a6CBC8078F33958dE73BCBe00f4e;
+    address buyer = 0xAb52269Dcf96792700316231f41be3e657Cd710c;
     // address signer = 0xF4ef37a4EcA1DeCB0E62482590b3D4Fc7f1214ec;
     address signer;
     // bytes32 signerPk = 0xf9fc766a27e844ad50c0e567e921d5d2cb661560d2bd2421f3db0c0f0a8e4364;
@@ -52,6 +52,10 @@ contract BBBTest is PRBTest, StdCheats {
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
+        console2.log("bbb.t.sol:");
+        console2.log(address(this));
+        console2.log("buyer:");
+        console2.log(buyer);
         // Assign signer an address and pk
         (signer, signerPk) = makeAddrAndKey("signer");
         vm.recordLogs();
@@ -124,6 +128,8 @@ contract BBBTest is PRBTest, StdCheats {
         // Become the buyer
         vm.startPrank(buyer);
         // Mint with intent
+        console2.log("prank caller in mint with intent");
+        console2.log(msg.sender);
         bbb.mintWithIntent{ value: value }(data, amount, signature);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, 1), amount);
@@ -135,9 +141,10 @@ contract BBBTest is PRBTest, StdCheats {
         uint256 value = 1 ether;
 
         vm.startPrank(buyer);
+        console2.log(buyer);
         test_mint_with_intent(); // mint with intent to issue tokenId 1
         bbb.mint(1, 1);
-        vm.stopPrank;
+        vm.stopPrank();
         assertEq(bbb.balanceOf(buyer, 1), amount + 1);
     }
 
@@ -266,4 +273,39 @@ contract BBBTest is PRBTest, StdCheats {
     function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
         return interfaceId == bytes4(0xf23a6e61) || interfaceId == bytes4(0xbc197c81); // ERC1155Receiver
     }
+
+    // function onERC1155Received(
+    //     address operator,
+    //     address from,
+    //     uint256 id,
+    //     uint256 value,
+    //     bytes calldata data
+    // ) external returns (bytes4);
+
+    /**
+     * @dev Handles the receipt of a multiple ERC1155 token types. This function
+     * is called at the end of a `safeBatchTransferFrom` after the balances have
+     * been updated.
+     *
+     * NOTE: To accept the transfer(s), this must return
+     * `bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))`
+     * (i.e. 0xbc197c81, or its own function selector).
+     *
+     * @param operator The address which initiated the batch transfer (i.e. msg.sender)
+     * @param from The address which previously owned the token
+     * @param ids An array containing ids of each token being transferred (order and length must match values array)
+     * @param values An array containing amounts of each token being transferred (order and length must match ids array)
+     * @param data Additional data with no specified format
+     * @return `bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))` if transfer is
+     * allowed
+     */
+    // function onERC1155BatchReceived(
+    //     address operator,
+    //     address from,
+    //     uint256[] calldata ids,
+    //     uint256[] calldata values,
+    //     bytes calldata data
+    // ) external returns (bytes4){
+    //     return bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
+    // }
 }
