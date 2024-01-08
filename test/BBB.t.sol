@@ -32,10 +32,10 @@ contract BBBTest is StdCheats, Test {
     address initialPriceModel;
 
     // Accounts needed for tests
-    address moderator = 0x1e2820Ea609681A9617d9984dC6188d3c5Ca09cF;
+    address constant moderator = 0x1e2820Ea609681A9617d9984dC6188d3c5Ca09cF;
     address payable protocolFeeRecipient = payable(makeAddr("protocolFeeRecipient"));
-    address creator = 0x0cA6761BC0C1a6CBC8078F33958dE73BCBe00f4e;
-    address buyer = 0xAb52269Dcf96792700316231f41be3e657Cd710c;
+    address constant creator = 0x0cA6761BC0C1a6CBC8078F33958dE73BCBe00f4e;
+    address constant buyer = 0xAb52269Dcf96792700316231f41be3e657Cd710c;
     // address signer = 0xF4ef37a4EcA1DeCB0E62482590b3D4Fc7f1214ec;
     address signer;
     // bytes32 signerPk = 0xf9fc766a27e844ad50c0e567e921d5d2cb661560d2bd2421f3db0c0f0a8e4364;
@@ -58,7 +58,7 @@ contract BBBTest is StdCheats, Test {
         console2.log(buyer);
         // Assign signer an address and pk
         (signer, signerPk) = makeAddrAndKey("signer");
-        vm.recordLogs();
+        // vm.recordLogs();
         // Instantiate the contract-under-test.
         bbb = new BBB(name, version, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee);
         // Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -71,6 +71,15 @@ contract BBBTest is StdCheats, Test {
         // Deal ETH to the buyer
         deal(buyer, 2 ether);
     }
+
+    event LogAddress(address);
+
+    // function test_prank() external {
+    //     vm.prank(address(1), address(2));
+    //     (, address msgSender, address txOrigin) = vm.readCallers();
+    //     console2.log("msg sender:", msgSender);
+    //     console2.log("txOrigin:", txOrigin);
+    // }
 
     function test_roles_assigned_correctly() external {
         // Assert that DEFAULT_ADMIN_ROLE is assigned to address(0)
@@ -126,23 +135,21 @@ contract BBBTest is StdCheats, Test {
         (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, signature); // TODO
         assertEq(intentSigner, signer);
         // Become the buyer
-        vm.startPrank(buyer);
+        vm.startPrank(buyer, buyer);
         // Mint with intent
-        console2.log("prank caller in mint with intent");
-        console2.log(msg.sender);
         bbb.mintWithIntent{ value: value }(data, amount, signature);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, 1), amount);
         vm.stopPrank();
     }
 
-    function test_mint() external {
+    function test_mint_no_intent() external {
         uint256 amount = 1;
         uint256 value = 1 ether;
 
-        vm.startPrank(buyer);
-        console2.log(buyer);
+        (, address msgSender, address txOrigin) = vm.readCallers();
         test_mint_with_intent(); // mint with intent to issue tokenId 1
+        vm.startPrank(buyer, buyer);
         bbb.mint(1, 1);
         vm.stopPrank();
         assertEq(bbb.balanceOf(buyer, 1), amount + 1);
@@ -263,8 +270,8 @@ contract BBBTest is StdCheats, Test {
                 )
             )
         );
-        console2.log("domainSep 1: ", uint256(_buildDomainSeparator()));
-        console2.log("digest 1: ", uint256(digest));
+        // console2.log("domainSep 1: ", uint256(_buildDomainSeparator()));
+        // console2.log("digest 1: ", uint256(digest));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return (v, r, s, digest);

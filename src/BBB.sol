@@ -119,8 +119,6 @@ contract BBB is
         emit CreatorFeeChanged(_creatorFee);
         emit ProtocolFeeRecipientChanged(_protocolFeeRecipient);
         emit AllowedPriceModelsChanged(_initialPriceModel, true);
-
-        console2.log("_initialPriceModel: ", _initialPriceModel);
     }
 
     /**
@@ -142,12 +140,6 @@ contract BBB is
 
         if (uriToTokenId[data.uri] != 0) revert UriAlreadyMinted();
         if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
-
-        // EIP-712 recovery
-        // See also https://docs.openzeppelin.com/contracts/4.x/api/utils#EIP712-_domainSeparatorV4--,
-        // https://book.getfoundry.sh/cheatcodes/sign
-        // https://viem.sh/docs/actions/wallet/signTypedData.html
-        // https://github.com/MetaMask/eth-sig-util/tree/main
 
         // Get the digest of the MintIntent
         bytes32 digest = _hashTypedDataV4(
