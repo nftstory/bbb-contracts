@@ -50,6 +50,10 @@ contract BBBTest is StdCheats, Test {
     //     // Vm.Log[] memory entries = vm.getRecordedLogs();
     // }
 
+    /*//////////////////////////////////////////////////////////////
+                                 SETUP
+    //////////////////////////////////////////////////////////////*/
+
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
         console2.log("bbb.t.sol:");
@@ -72,14 +76,9 @@ contract BBBTest is StdCheats, Test {
         deal(buyer, 2 ether);
     }
 
-    event LogAddress(address);
-
-    // function test_prank() external {
-    //     vm.prank(address(1), address(2));
-    //     (, address msgSender, address txOrigin) = vm.readCallers();
-    //     console2.log("msg sender:", msgSender);
-    //     console2.log("txOrigin:", txOrigin);
-    // }
+    /*//////////////////////////////////////////////////////////////
+                                 TESTS
+    //////////////////////////////////////////////////////////////*/
 
     function test_roles_assigned_correctly() external {
         // Assert that DEFAULT_ADMIN_ROLE is assigned to address(0)
@@ -153,7 +152,7 @@ contract BBBTest is StdCheats, Test {
         vm.startPrank(buyer, buyer);
         bbb.mint(1, 1);
         vm.stopPrank();
-        
+
         assertEq(bbb.balanceOf(buyer, 1), amount + 1);
     }
 
@@ -193,5 +192,4 @@ contract BBBTest is StdCheats, Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return (v, r, s, digest);
     }
-
 }
