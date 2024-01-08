@@ -42,7 +42,7 @@ contract BBBTest is StdCheats, Test {
     // uint256 signerPk = 113071962025583480559611482528073794879019954380499915552367164943375860122468;
     uint256 signerPk;
 
-    event Log(string message, uint256 value);
+    // event Log(string message, uint256 value);
 
     // function test_logging_events() public {
     //     vm.recordLogs();
@@ -56,20 +56,14 @@ contract BBBTest is StdCheats, Test {
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
-        console2.log("bbb.t.sol:");
-        console2.log(address(this));
-        console2.log("buyer:");
-        console2.log(buyer);
         // Assign signer an address and pk
         (signer, signerPk) = makeAddrAndKey("signer");
-        // vm.recordLogs();
+        vm.recordLogs();
         // Instantiate the contract-under-test.
         bbb = new BBB(name, version, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee);
-        // Vm.Log[] memory entries = vm.getRecordedLogs();
-        // Vm.Log[] memory entries = vm.getRecordedLogs();
-        // initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
-        initialPriceModel = 0x104fBc016F4bb334D775a19E8A6510109AC63E00; // TODO instead of hardcoding, get this from the
-            // logs
+        // Get the address of the initialPriceModel, deployed in bbb's constructor
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
         // console2.log("initialPriceModel: ", initialPriceModel);
 
         // Deal ETH to the buyer
@@ -146,10 +140,10 @@ contract BBBTest is StdCheats, Test {
         uint256 amount = 1;
         uint256 value = 1 ether;
 
-        (, address msgSender, address txOrigin) = vm.readCallers();
         test_mint_with_intent(); // mint with intent to issue tokenId 1
 
         vm.startPrank(buyer, buyer);
+        // (, address msgSender, address txOrigin) = vm.readCallers();
         bbb.mint(1, 1);
         vm.stopPrank();
 

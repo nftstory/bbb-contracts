@@ -89,7 +89,7 @@ contract BBB is
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address newProtocolFeeRecipient);
-    event AllowedPriceModelsChanged(address priceModel, bool allowed);
+    event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
 
     constructor(
         string memory _name,
