@@ -64,7 +64,7 @@ contract BBBTest is StdCheats, Test {
         // Get the address of the initialPriceModel, deployed in bbb's constructor
         Vm.Log[] memory entries = vm.getRecordedLogs();
         initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
-        // console2.log("initialPriceModel: ", initialPriceModel);
+        console2.log("initialPriceModel: ", initialPriceModel); // works
 
         // Deal ETH to the buyer
         deal(buyer, 2 ether);
