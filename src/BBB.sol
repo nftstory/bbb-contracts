@@ -164,15 +164,15 @@ contract BBB is
         // Pricing logic
         ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
 
-        // uint256 price = priceModel.sumPrice(0, amount);
-        uint256 price = priceModel.cumulativePrice(amount);
-        if (msg.value < price) revert InsufficientFunds();
+        // // uint256 price = priceModel.sumPrice(0, amount);
+        // uint256 price = priceModel.cumulativePrice(amount);
+        // if (msg.value < price) revert InsufficientFunds();
 
-        // Pay protocol fees
-        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
+        // // Pay protocol fees
+        // Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
 
-        // Pay creator fees
-        Address.sendValue(payable(data.creator), price * creatorFee / 1000);
+        // // Pay creator fees
+        // Address.sendValue(payable(data.creator), price * creatorFee / 1000);
 
         uint256 tokenId = ++totalNumberOfTokenIds;
 
@@ -194,25 +194,25 @@ contract BBB is
         if (!exists(tokenId)) revert TokenDoesNotExist();
         if (amount <= 0) revert InvalidAmount();
 
-        ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
+        // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
-        uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
-        if (msg.value < price) revert InsufficientFunds();
+        // uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
+        // if (msg.value < price) revert InsufficientFunds();
 
         // Mint tokens
         _mint(msg.sender, tokenId, amount, "");
 
-        // Pay protocol fees
-        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
+        // // Pay protocol fees
+        // Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
 
-        // Pay creator fees
-        Address.sendValue(payable(creators[tokenId]), price * creatorFee / 1000);
+        // // Pay creator fees
+        // Address.sendValue(payable(creators[tokenId]), price * creatorFee / 1000);
 
-        uint256 excess = msg.value - price;
+        // uint256 excess = msg.value - price;
 
-        if (excess > 0) {
-            Address.sendValue(payable(msg.sender), excess); // TODO catch revert
-        }
+        // if (excess > 0) {
+        //     Address.sendValue(payable(msg.sender), excess); // TODO catch revert
+        // }
     }
 
     function burn(uint256 tokenId, uint256 amount) external nonReentrant {

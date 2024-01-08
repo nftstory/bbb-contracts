@@ -3,24 +3,23 @@ pragma solidity >=0.8.23 <0.9.0;
 
 import { PRBTest } from "@prb/test/src/PRBTest.sol";
 import { console2 } from "forge-std/src/console2.sol";
-import { StdCheats } from "forge-std/src/StdCheats.sol";
-import {Vm} from "forge-std/src/Vm.sol";
-
+import { StdCheats, Vm } from "forge-std/src/StdCheats.sol";
+import { Vm } from "forge-std/src/Vm.sol";
 
 import { BBB } from "../src/BBB.sol";
 import {
     MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN
 } from "../src/structs/MintIntent.sol";
 
+import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-/// @dev If this is your first time with Forge, read this tutorial in the Foundry Book:
-/// https://book.getfoundry.sh/forge/writing-tests
 
 contract BBBTest is PRBTest, StdCheats {
     event AllowedPriceModelsChanged(address priceModel, bool allowed);
+
     BBB bbb;
 
     // Constructor arguments
@@ -42,29 +41,28 @@ contract BBBTest is PRBTest, StdCheats {
     // bytes32 signerPk = 0xf9fc766a27e844ad50c0e567e921d5d2cb661560d2bd2421f3db0c0f0a8e4364;
     // uint256 signerPk = 113071962025583480559611482528073794879019954380499915552367164943375860122468;
     uint256 signerPk;
-    // address priceModel = makeAddr("priceModel"); // TODO replace with an actual priceCurve
+
     event Log(string message, uint256 value);
 
-    function defuck() public {
-        vm.recordLogs();
-        emit Log("hi", 123);
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-
-    }
+    // function test_logging_events() public {
+    //     vm.recordLogs();
+    //     emit Log("hi", 123);
+    //     // Vm.Log[] memory entries = vm.getRecordedLogs();
+    // }
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
         // Assign signer an address and pk
         (signer, signerPk) = makeAddrAndKey("signer");
-        console2.log(signer);
-        console2.log(signerPk);
         vm.recordLogs();
         // Instantiate the contract-under-test.
         bbb = new BBB(name, version, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee);
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
-
-        console2.log("initialPriceModel: ", initialPriceModel);
+        // Vm.Log[] memory entries = vm.getRecordedLogs();
+        // Vm.Log[] memory entries = vm.getRecordedLogs();
+        // initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
+        initialPriceModel = 0x104fBc016F4bb334D775a19E8A6510109AC63E00; // TODO instead of hardcoding, get this from the
+            // logs
+        // console2.log("initialPriceModel: ", initialPriceModel);
 
         // Deal ETH to the buyer
         deal(buyer, 2 ether);
@@ -111,15 +109,16 @@ contract BBBTest is PRBTest, StdCheats {
         assertEq(signer, recoveredSigner); // [PASS]
     }
 
-    function test_mint_with_intent() external {
+    function test_mint_with_intent() public {
         uint256 amount = 1;
         uint256 value = 1 ether;
 
-        MintIntent memory data = MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
         (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
         bytes memory signature = toBytesSignature(v, r, s);
-        
+
         (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, signature); // TODO
         assertEq(intentSigner, signer);
         // Become the buyer
@@ -129,6 +128,17 @@ contract BBBTest is PRBTest, StdCheats {
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, 1), amount);
         vm.stopPrank();
+    }
+
+    function test_mint() external {
+        uint256 amount = 1;
+        uint256 value = 1 ether;
+
+        vm.startPrank(buyer);
+        test_mint_with_intent(); // mint with intent to issue tokenId 1
+        bbb.mint(1, 1);
+        vm.stopPrank;
+        assertEq(bbb.balanceOf(buyer, 1), amount + 1);
     }
 
     /**
@@ -216,7 +226,10 @@ contract BBBTest is PRBTest, StdCheats {
     //     assertEq(actualBalance, expectedBalance);
     // }
 
-    // ChatGPT4
+    /*//////////////////////////////////////////////////////////////
+                            HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
     function toBytesSignature(uint8 v, bytes32 r, bytes32 s) public pure returns (bytes memory) {
         return abi.encodePacked(r, s, v);
     }
@@ -233,18 +246,8 @@ contract BBBTest is PRBTest, StdCheats {
     )
         public
         view
-        returns (
-            // returns (bytes memory)
-            uint8,
-            bytes32,
-            bytes32,
-            bytes32
-        )
+        returns (uint8, bytes32, bytes32, bytes32)
     {
-        // uint256 nonce = 0;
-        // bytes32 hashStruct = keccak256(abi.encode(MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel,
-        // keccak256(bytes(data.uri))));
-        // bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashStruct));
         bytes32 digest = MessageHashUtils.toTypedDataHash(
             _buildDomainSeparator(),
             keccak256(
@@ -258,7 +261,9 @@ contract BBBTest is PRBTest, StdCheats {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return (v, r, s, digest);
-        // bytes memory signature = toBytesSignature(v, r, s);
-        // return signature;
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
+        return interfaceId == bytes4(0xf23a6e61) || interfaceId == bytes4(0xbc197c81); // ERC1155Receiver
     }
 }
