@@ -36,19 +36,9 @@ contract BBBTest is StdCheats, Test {
     address payable protocolFeeRecipient = payable(makeAddr("protocolFeeRecipient"));
     address constant creator = 0x0cA6761BC0C1a6CBC8078F33958dE73BCBe00f4e;
     address constant buyer = 0xAb52269Dcf96792700316231f41be3e657Cd710c;
-    // address signer = 0xF4ef37a4EcA1DeCB0E62482590b3D4Fc7f1214ec;
+
     address signer;
-    // bytes32 signerPk = 0xf9fc766a27e844ad50c0e567e921d5d2cb661560d2bd2421f3db0c0f0a8e4364;
-    // uint256 signerPk = 113071962025583480559611482528073794879019954380499915552367164943375860122468;
     uint256 signerPk;
-
-    // event Log(string message, uint256 value);
-
-    // function test_logging_events() public {
-    //     vm.recordLogs();
-    //     emit Log("hi", 123);
-    //     // Vm.Log[] memory entries = vm.getRecordedLogs();
-    // }
 
     /*//////////////////////////////////////////////////////////////
                                  SETUP
@@ -56,8 +46,10 @@ contract BBBTest is StdCheats, Test {
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
+        vm.chainId(5);
         // Assign signer an address and pk
         (signer, signerPk) = makeAddrAndKey("signer");
+        console2.log(signer);
         vm.recordLogs();
         // Instantiate the contract-under-test.
         bbb = new BBB(name, version, uri, moderator, protocolFeeRecipient, protocolFee, creatorFee);
@@ -150,6 +142,22 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.balanceOf(buyer, 1), amount + 1);
     }
 
+    // Test to generate sigs to use mint with the contract deployed on Goerli (5) 
+     function test_generate_sig() external {
+        vm.chainId(5);
+        MintIntent memory data = MintIntent({
+            creator: signer,
+            signer: signer,
+            priceModel: 0x2617da7E45E19d61d6075c2cCfA77e0380eF71e2, // pulled from testnet deploy logs
+            uri: "uri"
+        });
+
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+        bytes memory signature = toBytesSignature(v, r, s);
+        console2.logBytes(signature);
+    }
+
+
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -180,10 +188,9 @@ contract BBBTest is StdCheats, Test {
                 )
             )
         );
-        // console2.log("domainSep 1: ", uint256(_buildDomainSeparator()));
-        // console2.log("digest 1: ", uint256(digest));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return (v, r, s, digest);
     }
+
 }
