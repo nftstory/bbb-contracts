@@ -59,7 +59,7 @@ $ forge coverage
 
 ### Deploy
 
-Deploy to Sepolia:
+Deploy to Goerli:
 
 You can simulate this before doing it for real by removing `--broadcast`.
 

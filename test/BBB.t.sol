@@ -142,21 +142,23 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.balanceOf(buyer, 1), amount + 1);
     }
 
-    // Test to generate sigs to use mint with the contract deployed on Goerli (5) 
-     function test_generate_sig() external {
+    // Test to generate sigs to use mint with the contract deployed on Goerli (5)
+    function test_generate_sig() external {
+        // Spoof the values of the actually deployed contract
         vm.chainId(5);
+        bbb = BBB(0x0fce7123af19C45dDb1c2a938dA74c1CF665ab04);
+
         MintIntent memory data = MintIntent({
-            creator: signer,
-            signer: signer,
+            creator: 0x2D246F42CD32eB7e8Bd75F9295c8C457C6811d2e,
+            signer: 0x2D246F42CD32eB7e8Bd75F9295c8C457C6811d2e,
             priceModel: 0x2617da7E45E19d61d6075c2cCfA77e0380eF71e2, // pulled from testnet deploy logs
-            uri: "uri"
+            uri: "ipfs://bafybeic5yjh7ivn5og3upzw4ouz2s2no5vouayaglgxcg5jrc63s2wh2pe/48.json"
         });
 
-        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(vm.envUint("GOERLI_PRIVATE_KEY"), data);
         bytes memory signature = toBytesSignature(v, r, s);
         console2.logBytes(signature);
     }
-
 
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
@@ -192,5 +194,4 @@ contract BBBTest is StdCheats, Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return (v, r, s, digest);
     }
-
 }
