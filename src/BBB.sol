@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import { console2 } from "forge-std/src/console2.sol";
-
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
@@ -48,12 +46,11 @@ contract BBB is
 
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
-
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 
     // Configurable
     address payable public protocolFeeRecipient;
-    uint256 public protocolFeePoints; // 50 = 5%
+    uint256 public protocolFeePoints; // 50 = 5% 
     uint256 public creatorFee; // 50 = 5%
 
     // TODO change awful name
@@ -149,7 +146,7 @@ contract BBB is
                 )
             )
         );
-        
+
         // Recover the signer of the MintIntent
         if (!SignatureChecker.isValidSignatureNow(data.signer, digest, signature)) revert InvalidIntent();
 
@@ -183,8 +180,8 @@ contract BBB is
      * @param amount Amount of tokens to mint
      */
     function mint(uint256 tokenId, uint256 amount) external payable nonReentrant {
-        if (!exists(tokenId)) revert TokenDoesNotExist();
         if (amount <= 0) revert InvalidAmount();
+        if (!exists(tokenId)) revert TokenDoesNotExist();
 
         // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
@@ -224,8 +221,6 @@ contract BBB is
         allowedpriceModels[priceModel] = allowed;
         emit AllowedPriceModelsChanged(priceModel, allowed);
     }
-
-
 
     // // STILL IN CONSIDERATION
     // function pause() external onlyRole(MODERATOR_ROLE) {
