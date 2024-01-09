@@ -79,6 +79,15 @@ For this script to work, you need to have a `MNEMONIC` environment variable set 
 For instructions on how to deploy to a testnet or mainnet, check out the
 [Solidity Scripting](https://book.getfoundry.sh/tutorials/solidity-scripting.html) tutorial.
 
+
+### Testing
+
+To generate a signature for use against deployed instances of the contract, first mutate the chainId and deployed contract address in `/scripts/GenerateSignature.s.sol`, then call
+
+```sh
+forge script script/GenerateSignature.s.solure
+```
+
 ### Format
 
 Format the contracts:
