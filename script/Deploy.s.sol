@@ -4,7 +4,6 @@ pragma solidity >=0.8.23 <0.9.0;
 import { BBB } from "../src/BBB.sol";
 
 import "forge-std/src/Script.sol";
-// import { BaseScript } from "./Base.s.sol"; // Something from PRB
 
 /// @dev See the Solidity Scripting tutorial: https://book.getfoundry.sh/tutorials/solidity-scripting
 contract Deploy is Script {
