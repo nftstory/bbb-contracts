@@ -11,11 +11,11 @@ contract Deploy is Script {
     string name = "name";
     string version = "1";
     string uri = "demo_uri";
-    uint256 protocolFee = 50;
-    uint256 creatorFee = 50;
     address payable protocolFeeRecipient = payable(address(0x2D246F42CD32eB7e8Bd75F9295c8C457C6811d2e)); // TODO CHANGE
         // THIS!!
     address moderator = address(0x2D246F42CD32eB7e8Bd75F9295c8C457C6811d2e); // TODO CHANGE THIS!!
+    uint256 protocolFee = 50;
+    uint256 creatorFee = 50;
 
     function run() public returns (BBB bbb) {
         uint256 deployerPrivateKey = vm.envUint("GOERLI_PRIVATE_KEY"); // You must have this env var set on your local

@@ -142,6 +142,9 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.balanceOf(buyer, 1), amount + 1);
     }
 
+
+    // TODO Test what happens if the last one is burned and a new person tries to mint
+
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/

@@ -150,8 +150,8 @@ contract BBB is
         // Recover the signer of the MintIntent
         if (!SignatureChecker.isValidSignatureNow(data.signer, digest, signature)) revert InvalidIntent();
 
-        // Pricing logic
-        ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
+        // // Pricing logic
+        // ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
 
         // // uint256 price = priceModel.sumPrice(0, amount);
         // uint256 price = priceModel.cumulativePrice(amount);
@@ -207,12 +207,12 @@ contract BBB is
     function burn(uint256 tokenId, uint256 amount) external nonReentrant {
         if (!exists(tokenId)) revert TokenDoesNotExist();
         if (amount <= 0) revert InvalidAmount();
-        ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
-        uint256 currentSupply = totalSupply(tokenId);
-        uint256 refund = priceModel.sumPrice(currentSupply - amount, currentSupply);
+        // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
+        // uint256 currentSupply = totalSupply(tokenId);
+        // uint256 refund = priceModel.sumPrice(currentSupply - amount, currentSupply);
         _burn(msg.sender, tokenId, amount);
 
-        Address.sendValue(payable(msg.sender), refund);
+        // Address.sendValue(payable(msg.sender), refund);
     }
 
     /// @notice Allows the Moderator to add or remove price models
