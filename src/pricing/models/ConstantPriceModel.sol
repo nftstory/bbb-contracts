@@ -17,8 +17,14 @@ contract ConstantPriceModel is PriceModel {
     /**
      * See {IPriceModel-price}.
      */
-    function price(uint256) public view virtual override returns (uint256) {
-        return minPrice(); // constant price
+    function price(uint256 supply) public view virtual override returns (uint256) {
+        if (supply < _minSupply) {
+            return 0;
+        }
+        else if (supply > _maxSupply) {
+            return 0;
+        }
+        return _minPrice; // constant price
     }
 
     /**
@@ -27,6 +33,6 @@ contract ConstantPriceModel is PriceModel {
     function cumulativePrice(
         uint256 supply
     ) public view virtual override returns (uint256) {
-        return minPrice() * supply;
+        return _minPrice * supply;
     }
 }

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {ICompositePriceModel} from "../interfaces/ICompositePriceModel.sol";
-import {IPriceModel} from "../interfaces/IPriceModel.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import { ICompositePriceModel } from "../interfaces/ICompositePriceModel.sol";
+import { IPriceModel } from "../interfaces/IPriceModel.sol";
+import { ERC165 } from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @title CompositePriceModelBase
@@ -12,8 +12,8 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
  * This contract allows for combining multiple price models and querying them based on index or supply.
  */
 abstract contract CompositePriceModelBase is ICompositePriceModel, ERC165 {
-    uint internal immutable _minPriceModelIndex;
-    uint internal immutable _maxPriceModelIndex;
+    uint256 internal immutable _minPriceModelIndex;
+    uint256 internal immutable _maxPriceModelIndex;
     IPriceModel[] internal _models;
 
     /**
@@ -62,18 +62,14 @@ abstract contract CompositePriceModelBase is ICompositePriceModel, ERC165 {
     /**
      * See {ICompositePriceModel-modelAtIndex}.
      */
-    function modelAtIndex(
-        uint256 index
-    ) public view override returns (IPriceModel) {
+    function modelAtIndex(uint256 index) public view override returns (IPriceModel) {
         return _models[index];
     }
 
     /**
      * See {ICompositePriceModel-modelAtSupply}.
      */
-    function modelAtSupply(
-        uint256 supply
-    ) public view override returns (IPriceModel) {
+    function modelAtSupply(uint256 supply) public view override returns (IPriceModel) {
         uint256 _modelCount = modelCount();
         for (uint256 i = 0; i < _modelCount; i++) {
             if (supply <= _models[i].maxSupply()) {
@@ -86,9 +82,7 @@ abstract contract CompositePriceModelBase is ICompositePriceModel, ERC165 {
     /**
      * See {ICompositePriceModel-modelIndexAtSupply}.
      */
-    function modelIndexAtSupply(
-        uint256 supply
-    ) public view override returns (uint256) {
+    function modelIndexAtSupply(uint256 supply) public view override returns (uint256) {
         uint256 _modelCount = modelCount();
         for (uint256 i = 0; i < _modelCount; i++) {
             if (supply <= _models[i].maxSupply()) {
@@ -110,9 +104,7 @@ abstract contract CompositePriceModelBase is ICompositePriceModel, ERC165 {
      * @param supply The supply to get models up to
      * @return An array of IPriceModel interfaces representing all the price models
      */
-    function modelsToSupply(
-        uint256 supply
-    ) internal view returns (IPriceModel[] memory) {
+    function modelsToSupply(uint256 supply) internal view returns (IPriceModel[] memory) {
         uint256 _lastModelIndex = modelIndexAtSupply(supply);
         uint256 _modelCount = _lastModelIndex + 1;
         IPriceModel[] memory _models = new IPriceModel[](_modelCount);
@@ -125,17 +117,13 @@ abstract contract CompositePriceModelBase is ICompositePriceModel, ERC165 {
     /**
      * See {IPriceModel-cumulativePrice}.
      */
-    function cumulativePrice(
-        uint256 supply
-    ) public view override returns (uint256) {
+    function cumulativePrice(uint256 supply) public view override returns (uint256) {
         IPriceModel[] memory _modelsToSupply = modelsToSupply(supply);
-        uint256 _modelCount = _models.length;
+        uint256 _modelCount = _modelsToSupply.length;
         uint256 _price = 0;
         for (uint256 i = 0; i < _modelCount; i++) {
-            uint256 _fromSupply = _modelsToSupply[i].minSupply();
-            uint256 _maxSupply = _modelsToSupply[i].maxSupply();
-            uint256 _toSupply = _maxSupply < supply ? _maxSupply : supply;
-            _price += _modelsToSupply[i].sumPrice(_fromSupply, _toSupply);
+            // Terribly inefficient, TODO optimize
+            _price += _modelsToSupply[i].cumulativePrice(supply);
         }
         return _price;
     }
@@ -143,10 +131,7 @@ abstract contract CompositePriceModelBase is ICompositePriceModel, ERC165 {
     /**
      * See {IPriceModel-sumPrice}.
      */
-    function sumPrice(
-        uint256 fromSupply,
-        uint256 toSupply
-    ) public view returns (uint256) {
+    function sumPrice(uint256 fromSupply, uint256 toSupply) public view returns (uint256) {
         // Return the difference between the cumulative prices
         // TODO Optimize as this is VERY inefficient lol
         return cumulativePrice(toSupply) - cumulativePrice(fromSupply);
@@ -170,11 +155,7 @@ abstract contract CompositePriceModelBase is ICompositePriceModel, ERC165 {
     /**
      * See {IERC165-supportsInterface}.
      */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165, IERC165) returns (bool) {
-        return
-            interfaceId == type(ICompositePriceModel).interfaceId ||
-            super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(ICompositePriceModel).interfaceId || super.supportsInterface(interfaceId);
     }
 }
