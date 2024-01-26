@@ -35,7 +35,7 @@ interface IPriceModel is IERC165 {
     function maxPrice() external view returns (uint256);
 
     /**
-     * @notice Calculates the price for a given supply
+     * @notice Calculates the price for the token at a given supply
      * @param supply The supply amount to calculate the price for
      * @return The calculated price as a uint256
      */

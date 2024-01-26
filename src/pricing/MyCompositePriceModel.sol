@@ -16,8 +16,8 @@ contract MyCompositePriceModel is CompositePriceModelB {
         uint256 minPriceModelIndex,
         uint256 maxPriceModelIndex
     ) CompositePriceModelB(minPriceModelIndex, maxPriceModelIndex) {
-        _addModel(new ConstantPriceModel(0, 1000, 100));
-        _addModel(new LinearPriceModel(101, 1000, 1001, 2000));
+        _addModel(new ConstantPriceModel(0, 9, 1 ether));
+        _addModel(new LinearPriceModel(10, type(uint256).max, 1 ether, type(uint256).max));
         // _addModel(new ConstantPriceModel(1001, 2000, 200));
     }
 }

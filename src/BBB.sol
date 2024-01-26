@@ -13,8 +13,9 @@ import { ERC1155Burnable } from "@openzeppelin/contracts/token/ERC1155/extension
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-import { MintIntent } from "./structs/MintIntent.sol";
+import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN } from "./structs/MintIntent.sol";
 
 import { ICompositePriceModel } from "./pricing/interfaces/ICompositePriceModel.sol";
 import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
@@ -23,8 +24,10 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import { console2 } from "forge-std/src/console2.sol"; // TODO Remove
+
 /**
- * @title bbb1155
+ * @title bbb
  * @author nftstory
  */
 contract BBB is
@@ -39,14 +42,15 @@ contract BBB is
     Nonces
 {
     using Address for address;
+    // using ECDSA for bytes32;
+
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
-
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 
     // Configurable
-    address public protocolFeeRecipient;
-    uint256 public protocolFeePoints; // 50 = 5%
+    address payable public protocolFeeRecipient;
+    uint256 public protocolFeePoints; // 50 = 5% 
     uint256 public creatorFee; // 50 = 5%
 
     // TODO change awful name
@@ -59,10 +63,6 @@ contract BBB is
 
     // Maps token IDs to their creators' addresses
     mapping(uint256 => address) public creators;
-
-    // Typehash for MintIntent
-    bytes32 private constant MINTINTENT_TYPEHASH =
-        keccak256("MintIntent(address creator,address signer,address priceModel,string uri)");
 
     // Errors
     error InvalidRole();
@@ -86,7 +86,7 @@ contract BBB is
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address newProtocolFeeRecipient);
-    event AllowedPriceModelsChanged(address priceModel, bool allowed);
+    event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
 
     constructor(
         string memory _name,
@@ -94,23 +94,24 @@ contract BBB is
         string memory _uri, // Wraps tokenID in a baseURI https://eips.ethereum.org/EIPS/eip-1155#metadata[defined in
             // the EIP]
         address _moderator,
-        address _protocolFeeRecipient,
+        address payable _protocolFeeRecipient,
         uint256 _protocolFee,
-        uint256 _creatorFee,
-        address _initialPriceModel
+        uint256 _creatorFee
     )
         ERC1155(_uri)
         EIP712(_name, _signingDomainVersion)
     {
         if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
+        if (_moderator == address(0)) revert InvalidAddress();
 
         _grantRole(MODERATOR_ROLE, _moderator);
 
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
         creatorFee = _creatorFee;
+        address _initialPriceModel = address(new MyCompositePriceModel(0, 1));
         allowedpriceModels[_initialPriceModel] = true;
-        
+
         emit ProtocolFeeChanged(_protocolFee);
         emit CreatorFeeChanged(_creatorFee);
         emit ProtocolFeeRecipientChanged(_protocolFeeRecipient);
@@ -120,16 +121,13 @@ contract BBB is
     /**
      * @notice Mint new ERC1155 token(s) using an EIP-712 signature
      * @param data Struct containing minting data
-     * @param v v component of EIP-712 signature
-     * @param r r component of EIP-712 signature
-     * @param s s component of EIP-712 signature
+     * @param amount Amount of tokens to mint
+     * @param signature EIP-712 signature
      */
     function mintWithIntent(
         MintIntent memory data,
         uint256 amount,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes memory signature
     )
         external
         payable
@@ -143,25 +141,29 @@ contract BBB is
         // Get the digest of the MintIntent
         bytes32 digest = _hashTypedDataV4(
             keccak256(
-                abi.encode(MINTINTENT_TYPEHASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri)))
+                abi.encode(
+                    MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
+                )
             )
         );
 
-        // Verify that the intent signer == data.signer
-        (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, v, r, s);
-        if (intentSigner == address(0)) revert SignatureError(err, info); // Handle error
-        if (intentSigner != data.signer) revert InvalidIntent(); // Intent signer does not match signer TODO move to
-            // try/catch
+        // Recover the signer of the MintIntent
+        if (!SignatureChecker.isValidSignatureNow(data.signer, digest, signature)) revert InvalidIntent();
 
-        // Pay fees x2 TODO
+        // // Pricing logic
+        // ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
 
-        ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
+        // // uint256 price = priceModel.sumPrice(0, amount);
+        // uint256 price = priceModel.cumulativePrice(amount);
+        // if (msg.value < price) revert InsufficientFunds();
 
-        uint256 price = priceModel.sumPrice(0, amount);
-        if (msg.value < price) revert InsufficientFunds();
+        // // Pay protocol fees
+        // Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
 
-        // option b) full 6492 reliance - deploy the smart account when purchased
-        uint256 tokenId = ++totalNumberOfTokenIds; // TODO check
+        // // Pay creator fees
+        // Address.sendValue(payable(data.creator), price * creatorFee / 1000);
+
+        uint256 tokenId = ++totalNumberOfTokenIds;
 
         creators[tokenId] = data.creator;
         tokenIdTopriceModel[tokenId] = data.priceModel;
@@ -178,40 +180,39 @@ contract BBB is
      * @param amount Amount of tokens to mint
      */
     function mint(uint256 tokenId, uint256 amount) external payable nonReentrant {
-        if (!exists(tokenId)) revert TokenDoesNotExist();
         if (amount <= 0) revert InvalidAmount();
+        if (!exists(tokenId)) revert TokenDoesNotExist();
 
-        ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
+        // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
-        uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
-        if (msg.value < price) revert InsufficientFunds();
-        // We have to verify that the intent signer == data.signer TODO
-        // We need to store the data.creator in the creators mapping ✅
-        // We need to store the price model ✅
-        // We need to compute the price from the curve ✅
-        // We need to store the uri ✅
-        // _mint the nft ✅
-        // Pay fees x2 TODO
+        // uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
+        // if (msg.value < price) revert InsufficientFunds();
 
         // Mint tokens
         _mint(msg.sender, tokenId, amount, "");
 
-        uint256 excess = msg.value - price;
+        // // Pay protocol fees
+        // Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
 
-        if (excess > 0) {
-            Address.sendValue(payable(msg.sender), excess); // TODO catch revert
-        }
+        // // Pay creator fees
+        // Address.sendValue(payable(creators[tokenId]), price * creatorFee / 1000);
+
+        // uint256 excess = msg.value - price;
+
+        // if (excess > 0) {
+        //     Address.sendValue(payable(msg.sender), excess); // TODO catch revert
+        // }
     }
 
     function burn(uint256 tokenId, uint256 amount) external nonReentrant {
         if (!exists(tokenId)) revert TokenDoesNotExist();
         if (amount <= 0) revert InvalidAmount();
-        ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
-        uint256 currentSupply = totalSupply(tokenId);
-        uint256 refund = priceModel.sumPrice(currentSupply - amount, currentSupply);
+        // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
+        // uint256 currentSupply = totalSupply(tokenId);
+        // uint256 refund = priceModel.sumPrice(currentSupply - amount, currentSupply);
         _burn(msg.sender, tokenId, amount);
 
-        Address.sendValue(payable(msg.sender), refund);
+        // Address.sendValue(payable(msg.sender), refund);
     }
 
     /// @notice Allows the Moderator to add or remove price models
@@ -221,6 +222,14 @@ contract BBB is
         emit AllowedPriceModelsChanged(priceModel, allowed);
     }
 
+    // // STILL IN CONSIDERATION
+    // function pause() external onlyRole(MODERATOR_ROLE) {
+    //     _pause();
+    // }
+
+    // function unpause() external onlyRole(MODERATOR_ROLE) {
+    //     _unpause();
+    // }
     // ========== Overrides ==========
 
     function uri(uint256 tokenId) public view override(ERC1155, ERC1155URIStorage) returns (string memory) {
@@ -236,16 +245,8 @@ contract BBB is
         internal
         override(ERC1155, ERC1155Supply)
     {
+        // TODO just revert and don't call super -- no one needs to this power
         super._update(from, to, ids, values);
-    }
-
-    // STILL IN CONSIDERATION
-    function pause() external onlyRole(MODERATOR_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(MODERATOR_ROLE) {
-        _unpause();
     }
 
     function supportsInterface(bytes4 interfaceId)

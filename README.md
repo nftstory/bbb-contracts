@@ -1,19 +1,24 @@
 # bbb
 
 ## Template Info
-For instructions about what's included in the Foundry Template this is based on, see the [documentation](https://github.com/PaulRBerg/foundry-template).
+
+For instructions about what's included in the Foundry Template this is based on, see the
+[documentation](https://github.com/PaulRBerg/foundry-template).
 
 ## Installation
 
 ### Install Foundry
+
 Call `curl -L https://foundry.paradigm.xyz | bash`
 
-Call `foundryup` to update Foundry. 
+Call `foundryup` to update Foundry.
 
 ### Install Dependencies
+
 Dependencies are managed with pnpm. Install dependencies with `pnpm i`
 
-### Adding Dependencies 
+### Adding Dependencies
+
 Add dependencies from npm like so: `pnpm add @openzeppelin/contracts`
 
 ## Usage
@@ -54,6 +59,14 @@ $ forge coverage
 
 ### Deploy
 
+Deploy to Goerli:
+
+You can simulate this before doing it for real by removing `--broadcast`.
+
+```sh
+forge script script/Deploy.s.sol --rpc-url $GOERLI_RPC_URL --broadcast --verify
+```
+
 Deploy to Anvil:
 
 ```sh
@@ -65,6 +78,15 @@ For this script to work, you need to have a `MNEMONIC` environment variable set 
 
 For instructions on how to deploy to a testnet or mainnet, check out the
 [Solidity Scripting](https://book.getfoundry.sh/tutorials/solidity-scripting.html) tutorial.
+
+
+### Testing
+
+To generate a signature for use against deployed instances of the contract, first mutate the chainId and deployed contract address in `/scripts/GenerateSignature.s.sol`, then call
+
+```sh
+forge script script/GenerateSignature.s.solure
+```
 
 ### Format
 
@@ -126,8 +148,6 @@ environment accessible via the `vm` property. If you would like to view the logs
 `-vvv` flag and use [console.log](https://book.getfoundry.sh/faq?highlight=console.log#how-do-i-use-consolelog).
 
 This template comes with an example test contract [Foo.t.sol](./test/Foo.t.sol)
-
-
 
 ## License
 
