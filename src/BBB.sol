@@ -51,7 +51,7 @@ contract BBB is
 
     // Configurable
     address payable public protocolFeeRecipient;
-    uint256 public protocolFeePoints; // 50 = 5% 
+    uint256 public protocolFeePoints; // 50 = 5%
     uint256 public creatorFee; // 50 = 5%
 
     // Total number of token IDs
@@ -77,6 +77,7 @@ contract BBB is
     error InvalidIntent();
     error SignatureError(ECDSA.RecoverError, bytes32);
     error InvalidRecipient();
+    error CannotBurnLastToken();
 
     // Modifiers
     modifier onlyModerator() {
@@ -111,7 +112,7 @@ contract BBB is
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
         creatorFee = _creatorFee;
-        address _initialPriceModel = address(new AlmostLinearPriceCurve(1, 10000, 0, 9));
+        address _initialPriceModel = address(new AlmostLinearPriceCurve(1, 10_000, 0, 9));
         allowedpriceModels[_initialPriceModel] = true;
 
         emit ProtocolFeeChanged(_protocolFee);
@@ -157,12 +158,9 @@ contract BBB is
         // Recover the signer of the MintIntent
         if (!SignatureChecker.isValidSignatureNow(data.signer, digest, signature)) revert InvalidIntent();
 
-        // // Pricing logic
-        // ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
+        // Pricing logic
         IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(data.priceModel);
 
-        // // uint256 price = priceModel.sumPrice(0, amount);
-        // uint256 price = priceModel.cumulativePrice(amount);
         uint256 price = priceModel.getBatchMintPrice(0, amount);
         if (msg.value < price) revert InsufficientFunds();
 
@@ -198,11 +196,9 @@ contract BBB is
         if (amount <= 0) revert InvalidAmount();
         if (!exists(tokenId)) revert TokenDoesNotExist();
 
-        // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
         IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
 
-        // uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
         uint256 price = priceModel.getBatchMintPrice(currentSupply, amount);
         if (msg.value < price) revert InsufficientFunds();
 
@@ -218,17 +214,20 @@ contract BBB is
         uint256 excess = msg.value - price;
 
         if (excess > 0) {
-            Address.sendValue(payable(msg.sender), excess); // TODO catch revert
+            Address.sendValue(payable(msg.sender), excess);
         }
     }
 
     function burn(uint256 tokenId, uint256 amount) external nonReentrant {
         if (!exists(tokenId)) revert TokenDoesNotExist();
         if (amount <= 0) revert InvalidAmount();
-        // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
+
         IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
-        // uint256 refund = priceModel.sumPrice(currentSupply - amount, currentSupply);
+
+        // TODO allow burning last one in the future
+        if (amount >= currentSupply) revert CannotBurnLastToken();
+
         uint256 refund = priceModel.getBatchMintPrice(currentSupply - amount, amount);
 
         // Pay protocol fees
