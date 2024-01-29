@@ -17,14 +17,15 @@ import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/Sig
 
 import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN } from "./structs/MintIntent.sol";
 
-import { ICompositePriceModel } from "./pricing/interfaces/ICompositePriceModel.sol";
-import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
+// import { ICompositePriceModel } from "./pricing/interfaces/ICompositePriceModel.sol";
+// import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
+import { AlmostLinearPriceCurve, IAlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import { console2 } from "forge-std/src/console2.sol"; // TODO Remove
+// import { console2 } from "forge-std/src/console2.sol"; // TODO Remove
 
 /**
  * @title bbb
@@ -53,8 +54,8 @@ contract BBB is
     uint256 public protocolFeePoints; // 50 = 5% 
     uint256 public creatorFee; // 50 = 5%
 
-    // TODO change awful name
-    uint256 public totalNumberOfTokenIds;
+    // Total number of token IDs
+    uint256 public totalIds;
 
     mapping(address => bool) public allowedpriceModels;
     mapping(uint256 => address) public tokenIdTopriceModel;
@@ -75,6 +76,7 @@ contract BBB is
     error NoChangeToPriceModelAllowState();
     error InvalidIntent();
     error SignatureError(ECDSA.RecoverError, bytes32);
+    error InvalidRecipient();
 
     // Modifiers
     modifier onlyModerator() {
@@ -109,7 +111,7 @@ contract BBB is
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeePoints = _protocolFee;
         creatorFee = _creatorFee;
-        address _initialPriceModel = address(new MyCompositePriceModel(0, 1));
+        address _initialPriceModel = address(new AlmostLinearPriceCurve(1, 10000, 0, 9));
         allowedpriceModels[_initialPriceModel] = true;
 
         emit ProtocolFeeChanged(_protocolFee);
@@ -135,7 +137,10 @@ contract BBB is
     {
         if (amount <= 0) revert InvalidAmount();
 
-        if (uriToTokenId[data.uri] != 0) revert UriAlreadyMinted();
+        if (uriToTokenId[data.uri] != 0) {
+            /// Mint using existing token ID so multiple txns don't fail
+            return mint(uriToTokenId[data.uri], amount);
+        }
         if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
 
         // Get the digest of the MintIntent
@@ -152,18 +157,20 @@ contract BBB is
 
         // // Pricing logic
         // ICompositePriceModel priceModel = ICompositePriceModel(data.priceModel);
+        IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(data.priceModel);
 
         // // uint256 price = priceModel.sumPrice(0, amount);
         // uint256 price = priceModel.cumulativePrice(amount);
-        // if (msg.value < price) revert InsufficientFunds();
+        uint256 price = priceModel.getBatchMintPrice(0, amount);
+        if (msg.value < price) revert InsufficientFunds();
 
-        // // Pay protocol fees
-        // Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
+        // Pay protocol fees
+        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
 
-        // // Pay creator fees
-        // Address.sendValue(payable(data.creator), price * creatorFee / 1000);
+        // Pay creator fees
+        Address.sendValue(payable(data.creator), price * creatorFee / 1000);
 
-        uint256 tokenId = ++totalNumberOfTokenIds;
+        uint256 tokenId = ++totalIds;
 
         creators[tokenId] = data.creator;
         tokenIdTopriceModel[tokenId] = data.priceModel;
@@ -172,6 +179,12 @@ contract BBB is
         // Mint tokens
         _mint(msg.sender, tokenId, amount, "");
         _setURI(tokenId, data.uri);
+
+        uint256 excess = msg.value - price;
+
+        if (excess > 0) {
+            Address.sendValue(payable(msg.sender), excess);
+        }
     }
 
     /**
@@ -179,40 +192,54 @@ contract BBB is
      * @param tokenId ID of token to mint
      * @param amount Amount of tokens to mint
      */
-    function mint(uint256 tokenId, uint256 amount) external payable nonReentrant {
+    function mint(uint256 tokenId, uint256 amount) public payable nonReentrant {
         if (amount <= 0) revert InvalidAmount();
         if (!exists(tokenId)) revert TokenDoesNotExist();
 
         // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
+        IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]);
         uint256 currentSupply = totalSupply(tokenId);
+
         // uint256 price = priceModel.sumPrice(currentSupply, currentSupply + amount);
-        // if (msg.value < price) revert InsufficientFunds();
+        uint256 price = priceModel.getBatchMintPrice(currentSupply, amount);
+        if (msg.value < price) revert InsufficientFunds();
 
         // Mint tokens
         _mint(msg.sender, tokenId, amount, "");
 
-        // // Pay protocol fees
-        // Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
+        // Pay protocol fees
+        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
 
-        // // Pay creator fees
-        // Address.sendValue(payable(creators[tokenId]), price * creatorFee / 1000);
+        // Pay creator fees
+        Address.sendValue(payable(creators[tokenId]), price * creatorFee / 1000);
 
-        // uint256 excess = msg.value - price;
+        uint256 excess = msg.value - price;
 
-        // if (excess > 0) {
-        //     Address.sendValue(payable(msg.sender), excess); // TODO catch revert
-        // }
+        if (excess > 0) {
+            Address.sendValue(payable(msg.sender), excess); // TODO catch revert
+        }
     }
 
     function burn(uint256 tokenId, uint256 amount) external nonReentrant {
         if (!exists(tokenId)) revert TokenDoesNotExist();
         if (amount <= 0) revert InvalidAmount();
         // ICompositePriceModel priceModel = ICompositePriceModel(tokenIdTopriceModel[tokenId]);
-        // uint256 currentSupply = totalSupply(tokenId);
+        IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]);
+        uint256 currentSupply = totalSupply(tokenId);
         // uint256 refund = priceModel.sumPrice(currentSupply - amount, currentSupply);
+        uint256 refund = priceModel.getBatchMintPrice(currentSupply - amount, amount);
+
+        // Pay protocol fees
+        uint256 protocolRefundFee = refund * protocolFeePoints / 1000;
+        Address.sendValue(protocolFeeRecipient, protocolRefundFee);
+
+        // Pay creator fees
+        uint256 creatorRefundFee = refund * creatorFee / 1000;
+        Address.sendValue(payable(creators[tokenId]), creatorRefundFee);
+
         _burn(msg.sender, tokenId, amount);
 
-        // Address.sendValue(payable(msg.sender), refund);
+        Address.sendValue(payable(msg.sender), refund - protocolRefundFee - creatorRefundFee);
     }
 
     /// @notice Allows the Moderator to add or remove price models
@@ -247,6 +274,10 @@ contract BBB is
     {
         // TODO just revert and don't call super -- no one needs to this power
         super._update(from, to, ids, values);
+    }
+
+    receive() external payable {
+        revert InvalidRecipient();
     }
 
     function supportsInterface(bytes4 interfaceId)

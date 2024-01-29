@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
+interface IAlmostLinearPriceCurve {
+    function getNextMintPrice(uint256 currentSupply) external view returns (uint256);
+    function getBatchMintPrice(uint256 currentSupply, uint256 amount) external view returns (uint256);
+}
+
 /**
  * @title AlmostLinearPriceCurve
  * @notice This contract implements an almost linear price curve represented by the equation y = ax + b,
  *         where 'a' is determined by m/n, and 'b' is the intercept. The curve has a constant value for x
  *         less than a specified cutoff point, beyond which it becomes linear.
  */
-contract AlmostLinearPriceCurve {
+contract AlmostLinearPriceCurve is IAlmostLinearPriceCurve {
     // The number of decimal places to support fractional values.
     uint256 public constant decimals = 18;
 
