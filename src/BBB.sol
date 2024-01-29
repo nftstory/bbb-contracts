@@ -139,7 +139,9 @@ contract BBB is
 
         if (uriToTokenId[data.uri] != 0) {
             /// Mint using existing token ID so multiple txns don't fail
-            return mint(uriToTokenId[data.uri], amount);
+            revert UriAlreadyMinted();
+            // This will make the contract the msg.sender? TODO
+            // return mint(uriToTokenId[data.uri], amount);
         }
         if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
 
