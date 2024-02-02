@@ -5,7 +5,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
-import { IERC1155MetadataURI } from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
+// import { IERC1155MetadataURI } from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import { ERC1155Burnable } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
@@ -17,15 +17,11 @@ import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/Sig
 
 import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN } from "./structs/MintIntent.sol";
 
-// import { ICompositePriceModel } from "./pricing/interfaces/ICompositePriceModel.sol";
-// import { MyCompositePriceModel } from "./pricing/MyCompositePriceModel.sol";
 import { AlmostLinearPriceCurve, IAlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
-// import { console2 } from "forge-std/src/console2.sol"; // TODO Remove
 
 /**
  * @title bbb
@@ -42,9 +38,6 @@ contract BBB is
     EIP712,
     Nonces
 {
-    using Address for address;
-    // using ECDSA for bytes32;
-
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
@@ -52,14 +45,18 @@ contract BBB is
     // Configurable
     address payable public protocolFeeRecipient;
     uint256 public protocolFeePoints; // 50 = 5%
-    uint256 public creatorFee; // 50 = 5%
+    uint256 public creatorFeePoints; // 50 = 5%
 
     // Total number of token IDs
     uint256 public totalIds;
 
+    // Maps price models to their allowed state
     mapping(address => bool) public allowedpriceModels;
+
+    // Maps token IDs to their price models
     mapping(uint256 => address) public tokenIdTopriceModel;
 
+    // Maps URIs to their token IDs
     mapping(string => uint256) public uriToTokenId;
 
     // Maps token IDs to their creators' addresses
@@ -94,31 +91,27 @@ contract BBB is
     constructor(
         string memory _name,
         string memory _signingDomainVersion,
-        string memory _uri, // Wraps tokenID in a baseURI https://eips.ethereum.org/EIPS/eip-1155#metadata[defined in
-            // the EIP]
         address _moderator,
         address payable _protocolFeeRecipient,
-        uint256 _protocolFee,
-        uint256 _creatorFee
+        uint256 _protocolFeePoints,
+        uint256 _creatorFeePoints
     )
-        ERC1155(_uri)
+        ERC1155("")
         EIP712(_name, _signingDomainVersion)
     {
         if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
         if (_moderator == address(0)) revert InvalidAddress();
 
         _grantRole(MODERATOR_ROLE, _moderator);
+        _setProtocolFeeRecipient(_protocolFeeRecipient);
+        _setProtocolFeePoints(_protocolFeePoints);
+        _setCreatorFeePoints(_creatorFeePoints);
+        // Creates a default price model, first 10 are constant, then linear increase.
+        _setAllowedPriceModel(address(new AlmostLinearPriceCurve(1, 10_000, 0, 9)), true);
+    }
 
-        protocolFeeRecipient = _protocolFeeRecipient;
-        protocolFeePoints = _protocolFee;
-        creatorFee = _creatorFee;
-        address _initialPriceModel = address(new AlmostLinearPriceCurve(1, 10_000, 0, 9));
-        allowedpriceModels[_initialPriceModel] = true;
-
-        emit ProtocolFeeChanged(_protocolFee);
-        emit CreatorFeeChanged(_creatorFee);
-        emit ProtocolFeeRecipientChanged(_protocolFeeRecipient);
-        emit AllowedPriceModelsChanged(_initialPriceModel, true);
+    receive() external payable {
+        revert InvalidRecipient();
     }
 
     /**
@@ -136,14 +129,215 @@ contract BBB is
         payable
         nonReentrant
     {
-        if (amount <= 0) revert InvalidAmount();
+        // TODO Andy commented the line below
+        // Reasoning: Shoot first, ask questions later. We could be checking for every possible error here.
+        // It's not our job to babysit users.
+        // if (amount == 0) revert InvalidAmount();
 
         if (uriToTokenId[data.uri] != 0) {
             /// Mint using existing token ID so multiple txns don't fail
-            revert UriAlreadyMinted();
-            // This will make the contract the msg.sender? TODO
-            // return mint(uriToTokenId[data.uri], amount);
+            uint256 tokenId = uriToTokenId[data.uri];
+            uint256 supplyBeforeMint = totalSupply(tokenId);
+
+            _mint(msg.sender, tokenId, amount, "");
+            return _handleBuy(
+                msg.sender,
+                msg.value,
+                IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]),
+                creators[tokenId],
+                supplyBeforeMint,
+                amount
+            );
         }
+
+        if (!isValidMintIntent(data, signature)) revert InvalidIntent();
+
+        uint256 newTokenId = ++totalIds;
+
+        // Store the mint intent data
+        creators[newTokenId] = data.creator;
+        tokenIdTopriceModel[newTokenId] = data.priceModel;
+        uriToTokenId[data.uri] = newTokenId;
+
+        _mint(msg.sender, newTokenId, amount, "");
+        // ERC1155URIStorage
+        _setURI(newTokenId, data.uri);
+
+        _handleBuy(msg.sender, msg.value, IAlmostLinearPriceCurve(data.priceModel), data.creator, 0, amount);
+    }
+
+    /**
+     * @notice Mint existing ERC1155 token(s)
+     * @param tokenId ID of token to mint
+     * @param amount Amount of tokens to mint
+     */
+    function mint(uint256 tokenId, uint256 amount) public payable nonReentrant {
+        // Checks-effects-interactions pattern
+        // if (amount == 0) revert InvalidAmount();
+        if (!exists(tokenId)) revert TokenDoesNotExist();
+
+        uint256 supplyBeforeMint = totalSupply(tokenId);
+
+        _mint(msg.sender, tokenId, amount, "");
+
+        _handleBuy(
+            msg.sender,
+            msg.value,
+            IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]),
+            creators[tokenId],
+            supplyBeforeMint,
+            amount
+        );
+    }
+
+    /**
+     * @notice Burn ERC1155 token(s)
+     * @param tokenId ID of token to burn
+     * @param amount Amount of tokens to burn
+     */
+    function burn(uint256 tokenId, uint256 amount) external nonReentrant {
+        if (!exists(tokenId)) revert TokenDoesNotExist();
+        // if (amount == 0) revert InvalidAmount(); // TODO Andy commented the line
+
+        uint256 supplyAfterBurn = totalSupply(tokenId) - amount; // This will be the supply after the burn
+        if (supplyAfterBurn == 0) revert CannotBurnLastToken();
+
+        _burn(msg.sender, tokenId, amount);
+        _handleSell(msg.sender, tokenId, supplyAfterBurn, amount);
+    }
+
+    /// @notice Allows the Moderator to add or remove price models
+    function setAllowedPriceModel(address priceModel, bool allowed) external onlyModerator {
+        _setAllowedPriceModel(priceModel, allowed);
+    }
+
+    /// @notice Changing the protocol fee mid-way won't break royalty calculations
+    function setProtocolFeePoints(uint256 newProtocolFeePoints) external onlyModerator {
+        _setProtocolFeePoints(newProtocolFeePoints);
+    }
+
+    /// @notice Changing the creator fee mid-way won't break royalty calculations
+    function setCreatorFeePoints(uint256 newCreatorFeePoints) external onlyModerator {
+        _setCreatorFeePoints(newCreatorFeePoints);
+    }
+
+    /// @notice Changing the protocol fee recipient mid-way won't break royalty calculations
+    function setProtocolFeeRecipient(address payable newProtocolFeeRecipient) external onlyModerator {
+        _setProtocolFeeRecipient(newProtocolFeeRecipient);
+    }
+
+    // ========== Internal Functions ==========
+
+    function _setAllowedPriceModel(address priceModel, bool allowed) internal {
+        allowedpriceModels[priceModel] = allowed;
+        emit AllowedPriceModelsChanged(priceModel, allowed);
+    }
+
+    function _setProtocolFeePoints(uint256 newProtocolFeePoints) internal {
+        protocolFeePoints = newProtocolFeePoints;
+        emit ProtocolFeeChanged(newProtocolFeePoints);
+    }
+
+    function _setCreatorFeePoints(uint256 newCreatorFeePoints) internal {
+        creatorFeePoints = newCreatorFeePoints;
+        emit CreatorFeeChanged(newCreatorFeePoints);
+    }
+
+    function _setProtocolFeeRecipient(address payable newProtocolFeeRecipient) internal {
+        protocolFeeRecipient = newProtocolFeeRecipient;
+        emit ProtocolFeeRecipientChanged(newProtocolFeeRecipient);
+    }
+    /**
+     * @param buyer The address of the buyer
+     * @param msgValue The amount of ETH sent by the buyer
+     * @param priceModel The price model used to calculate the price
+     * @param creator The address of the creator
+     * @param supplyBeforeMint The supply of the token before minting
+     * @param mintAmount The amount of tokens minted
+     */
+
+    function _handleBuy(
+        address buyer,
+        uint256 msgValue,
+        IAlmostLinearPriceCurve priceModel,
+        address creator,
+        uint256 supplyBeforeMint,
+        uint256 mintAmount
+    )
+        internal
+    {
+        (uint256 basePrice, uint256 protocolFee, uint256 creatorFee) =
+            _handleRoyalties(priceModel, creator, supplyBeforeMint, mintAmount);
+        uint256 totalPrice = basePrice + protocolFee + creatorFee;
+
+        if (msgValue < totalPrice) {
+            revert InsufficientFunds();
+        } else if (msgValue > totalPrice) {
+            uint256 excess = msgValue - totalPrice;
+            Address.sendValue(payable(buyer), excess);
+        }
+        // else {
+        //     // Do nothing - the buyer sent exactly the right amount!
+        // }
+    }
+
+    /**
+     * @param seller The address of the seller
+     * @param tokenId The ID of the token being sold
+     * @param supplyAfterBurn The supply of the token after burning
+     * @param burnAmount The amount of tokens burned
+     */
+    function _handleSell(address seller, uint256 tokenId, uint256 supplyAfterBurn, uint256 burnAmount) internal {
+        address creator = creators[tokenId];
+
+        (uint256 basePrice, uint256 protocolFee, uint256 creatorFee) = _handleRoyalties(
+            IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]), creator, supplyAfterBurn, burnAmount
+        );
+        // Seller gets the base price minus protocol fee minus creator fee
+        Address.sendValue(payable(seller), basePrice - protocolFee - creatorFee);
+    }
+
+    /**
+     * @param priceModel The price model used to calculate the price
+     * @param creator The address of the creator
+     * @param currentSupply The current supply of the token
+     * @param amount The amount of tokens being minted
+     * @return basePrice The base price of the mint
+     * @return protocolFee The protocol fee
+     * @return creatorFee The creator fee
+     */
+    function _handleRoyalties(
+        IAlmostLinearPriceCurve priceModel,
+        address creator,
+        uint256 currentSupply,
+        uint256 amount
+    )
+        internal
+        returns (uint256, uint256, uint256)
+    {
+        // We don't even care about the token ID here, just the price model
+        uint256 basePrice = priceModel.getBatchMintPrice(currentSupply, amount);
+        uint256 protocolFee = basePrice * protocolFeePoints / 1000;
+        uint256 creatorFee = basePrice * creatorFeePoints / 1000;
+
+        // Pay protocol fees
+        Address.sendValue(protocolFeeRecipient, protocolFee);
+
+        // Pay creator fees
+        Address.sendValue(payable(creator), creatorFee);
+
+        // Used in both buy and sell price logic
+        return (basePrice, protocolFee, creatorFee);
+    }
+
+    // ========== Public Functions ==========
+    /**
+     * @param data The mint intent
+     * @param signature The signature of the mint intent
+     * @return bool Whether the mint intent is valid
+     */
+    function isValidMintIntent(MintIntent memory data, bytes memory signature) public view returns (bool) {
+        // Moved this here
         if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
 
         // Get the digest of the MintIntent
@@ -156,108 +350,9 @@ contract BBB is
         );
 
         // Recover the signer of the MintIntent
-        if (!SignatureChecker.isValidSignatureNow(data.signer, digest, signature)) revert InvalidIntent();
-
-        // Pricing logic
-        IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(data.priceModel);
-
-        uint256 price = priceModel.getBatchMintPrice(0, amount);
-        if (msg.value < price) revert InsufficientFunds();
-
-        // Pay protocol fees
-        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
-
-        // Pay creator fees
-        Address.sendValue(payable(data.creator), price * creatorFee / 1000);
-
-        uint256 tokenId = ++totalIds;
-
-        creators[tokenId] = data.creator;
-        tokenIdTopriceModel[tokenId] = data.priceModel;
-        uriToTokenId[data.uri] = tokenId;
-
-        // Mint tokens
-        _mint(msg.sender, tokenId, amount, "");
-        _setURI(tokenId, data.uri);
-
-        uint256 excess = msg.value - price;
-
-        if (excess > 0) {
-            Address.sendValue(payable(msg.sender), excess);
-        }
+        return SignatureChecker.isValidSignatureNow(data.signer, digest, signature);
     }
 
-    /**
-     * @notice Mint existing ERC1155 token(s)
-     * @param tokenId ID of token to mint
-     * @param amount Amount of tokens to mint
-     */
-    function mint(uint256 tokenId, uint256 amount) public payable nonReentrant {
-        if (amount <= 0) revert InvalidAmount();
-        if (!exists(tokenId)) revert TokenDoesNotExist();
-
-        IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]);
-        uint256 currentSupply = totalSupply(tokenId);
-
-        uint256 price = priceModel.getBatchMintPrice(currentSupply, amount);
-        if (msg.value < price) revert InsufficientFunds();
-
-        // Mint tokens
-        _mint(msg.sender, tokenId, amount, "");
-
-        // Pay protocol fees
-        Address.sendValue(protocolFeeRecipient, price * protocolFeePoints / 1000);
-
-        // Pay creator fees
-        Address.sendValue(payable(creators[tokenId]), price * creatorFee / 1000);
-
-        uint256 excess = msg.value - price;
-
-        if (excess > 0) {
-            Address.sendValue(payable(msg.sender), excess);
-        }
-    }
-
-    function burn(uint256 tokenId, uint256 amount) external nonReentrant {
-        if (!exists(tokenId)) revert TokenDoesNotExist();
-        if (amount <= 0) revert InvalidAmount();
-
-        IAlmostLinearPriceCurve priceModel = IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]);
-        uint256 currentSupply = totalSupply(tokenId);
-
-        // TODO allow burning last one in the future
-        if (amount >= currentSupply) revert CannotBurnLastToken();
-
-        uint256 refund = priceModel.getBatchMintPrice(currentSupply - amount, amount);
-
-        // Pay protocol fees
-        uint256 protocolRefundFee = refund * protocolFeePoints / 1000;
-        Address.sendValue(protocolFeeRecipient, protocolRefundFee);
-
-        // Pay creator fees
-        uint256 creatorRefundFee = refund * creatorFee / 1000;
-        Address.sendValue(payable(creators[tokenId]), creatorRefundFee);
-
-        _burn(msg.sender, tokenId, amount);
-
-        Address.sendValue(payable(msg.sender), refund - protocolRefundFee - creatorRefundFee);
-    }
-
-    /// @notice Allows the Moderator to add or remove price models
-    function setAllowedPriceModel(address priceModel, bool allowed) external onlyModerator {
-        if (allowedpriceModels[priceModel] == allowed) revert NoChangeToPriceModelAllowState();
-        allowedpriceModels[priceModel] = allowed;
-        emit AllowedPriceModelsChanged(priceModel, allowed);
-    }
-
-    // // STILL IN CONSIDERATION
-    // function pause() external onlyRole(MODERATOR_ROLE) {
-    //     _pause();
-    // }
-
-    // function unpause() external onlyRole(MODERATOR_ROLE) {
-    //     _unpause();
-    // }
     // ========== Overrides ==========
 
     function uri(uint256 tokenId) public view override(ERC1155, ERC1155URIStorage) returns (string memory) {
@@ -277,10 +372,6 @@ contract BBB is
         super._update(from, to, ids, values);
     }
 
-    receive() external payable {
-        revert InvalidRecipient();
-    }
-
     function supportsInterface(bytes4 interfaceId)
         public
         view
@@ -289,6 +380,15 @@ contract BBB is
         returns (bool)
     {
         return AccessControl.supportsInterface(interfaceId) || ERC1155.supportsInterface(interfaceId)
-            || interfaceId == type(IERC1155MetadataURI).interfaceId || super.supportsInterface(interfaceId);
+            || super.supportsInterface(interfaceId);
     }
+
+    // ========== STILL IN CONSIDERATION ==========
+    // function pause() external onlyRole(MODERATOR_ROLE) {
+    //     _pause();
+    // }
+
+    // function unpause() external onlyRole(MODERATOR_ROLE) {
+    //     _unpause();
+    // }
 }
