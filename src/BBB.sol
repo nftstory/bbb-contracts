@@ -40,8 +40,9 @@ contract BBB is
 {
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
-    bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 
+    // bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
+    bytes32 public constant MODERATOR_ROLE = 0x71f3d55856e4058ed06ee057d79ada615f65cdf5f9ee88181b914225088f834f;
     // Configurable
     address payable public protocolFeeRecipient;
     uint256 public protocolFeePoints; // 50 = 5%

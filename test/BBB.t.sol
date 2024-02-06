@@ -11,7 +11,7 @@ import {
     MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN
 } from "../src/structs/MintIntent.sol";
 
-import {IAlmostLinearPriceCurve} from "../src/pricing/AlmostLinearPriceCurve.sol";
+import { IAlmostLinearPriceCurve } from "../src/pricing/AlmostLinearPriceCurve.sol";
 
 import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
@@ -110,7 +110,7 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_mint_with_intent() public {
-        uint256 amount = 1;
+        uint256 amount = 2;
 
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
@@ -122,36 +122,43 @@ contract BBBTest is StdCheats, Test {
         assertEq(intentSigner, signer);
 
         // Get the price from the price model
-        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(0);
+        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, amount);
+        uint256 protocolFeeAmount = protocolFee * price / 1000;
+        uint256 creatorFeeAmount = creatorFee * price / 1000;
+        uint256 total = price + protocolFeeAmount + creatorFeeAmount;
+        console2.log("Price", price); // 1_000_000_000_000_000
+        // uint256 price = 1 ether;
 
+        // TODO add protocol fees, for now just bump the price
         // Become the buyer
         vm.startPrank(buyer, buyer);
         // Mint with intent
-        bbb.mintWithIntent{ value: price }(data, amount, signature);
+
+        bbb.mintWithIntent{ value: total }(data, amount, signature);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, 1), amount);
         // Assert that the protocol fee recipient has the protocol fee
-        assertEq(address(protocolFeeRecipient).balance, protocolFee * price / 1000);
+        assertEq(address(protocolFeeRecipient).balance, protocolFeeAmount);
         // Assert that the creator has the creator fee
-        assertEq(address(creator).balance, creatorFee * price / 1000);
+        assertEq(address(creator).balance, creatorFeeAmount);
         vm.stopPrank();
     }
 
     function test_mint_no_intent() external {
         uint256 amount = 1;
 
-        uint256 firstPrice = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(0);
+        uint256 firstPrice = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, 2);
         test_mint_with_intent(); // mint with intent to issue tokenId 1
 
         // The currentSupply in this case is 1 as we just minted it with the intent above
         uint256 secondPrice = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(1);
-        
+
         vm.startPrank(buyer, buyer);
         // (, address msgSender, address txOrigin) = vm.readCallers();
-        bbb.mint{ value: secondPrice }(1, 1);
+        bbb.mint{ value: 2 * secondPrice }(1, 1);
         vm.stopPrank();
         // Assert that the buyer has the NFT
-        assertEq(bbb.balanceOf(buyer, 1), amount + 1);
+        assertEq(bbb.balanceOf(buyer, 1), amount + 2);
         // Assert that the protocol fee recipient has the protocol fee
         assertEq(address(protocolFeeRecipient).balance, protocolFee * (firstPrice + secondPrice) / 1000);
         // Assert that the creator has the creator fee
@@ -160,30 +167,37 @@ contract BBBTest is StdCheats, Test {
 
     function test_burn() external {
         // vm.pauseGasMetering();
-        uint256 amount = 1;
+        uint256 mintAmount = 2;
+        uint256 burnAmount = 1;
+        uint256 N = mintAmount + burnAmount;
 
         uint256 initialBalance = address(buyer).balance;
-        
-        test_mint_with_intent(); // mint with intent to issue tokenId 1
 
+        test_mint_with_intent(); // mint with intent to issue tokenId 1
         // The currentSupply in this case is 1 as we just minted it with the intent above
-        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(1);
-        uint256 mintProtocolFee = price * protocolFee / 1000;
-        uint256 mintCreatorFee = price * creatorFee / 1000; 
+        uint256 priceSingle = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(0);
+        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mintAmount);
+        uint256 mintProtocolFee = priceSingle * protocolFee / 1000;
+        uint256 mintCreatorFee = priceSingle * creatorFee / 1000;
+
+        // The price of minting 2 tokens, burning one (refund) => 3 * mintProtocolFee + 3 * mintCreatorFee
+        // uint256 x = (price - priceSingle) + 3*(mintProtocolFee + mintCreatorFee);
 
         vm.startPrank(buyer, buyer);
         // (, address msgSender, address txOrigin) = vm.readCallers();
-        bbb.burn(buyer, 1, amount);
+        bbb.burn(1, burnAmount);
         vm.stopPrank();
 
-        assertEq(bbb.balanceOf(buyer, 1), 0);
+        assertEq(bbb.balanceOf(buyer, 1), 1);
 
         uint256 finalBalance = address(buyer).balance;
-        // assertEq(finalBalance, initialBalance - 2*(mintProtocolFee + mintCreatorFee));
+        // console2.log("balanceDIff", initialBalance - finalBalance);
+        // console2.log("x", x);
+
+        assertEq(finalBalance, initialBalance - N * (mintProtocolFee + mintCreatorFee) - price / 2);
+        assertEq(address(protocolFeeRecipient).balance,  N * mintProtocolFee);
+        assertEq(address(creator).balance, N * mintCreatorFee);
     }
-
-
-
 
     // TODO Test what happens if the last one is burned and a new person tries to mint
 
