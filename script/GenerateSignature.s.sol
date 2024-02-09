@@ -9,7 +9,7 @@ import "forge-std/src/Script.sol";
 contract Deploy is Script {
     // ⬇️ Mutate me based on where you deployed the contract ⬇️
     uint256 chainId = 5; // Chain to which the contract is deployed
-    BBB bbb = BBB(0x0fce7123af19C45dDb1c2a938dA74c1CF665ab04); // Address of the deployed contract
+    BBB bbb = BBB(payable(0x0fce7123af19C45dDb1c2a938dA74c1CF665ab04)); // Address of the deployed contract
     // ⬆️
 
     string name = "name";

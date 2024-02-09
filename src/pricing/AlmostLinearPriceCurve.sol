@@ -20,20 +20,20 @@ contract AlmostLinearPriceCurve is IAlmostLinearPriceCurve {
     uint256 public immutable weiSlopeNumerator;
 
     // Denominator for the slope parameter 'a' in the equation y = ax + b.
-    uint256 public immutable weiSlopeDeNominator;
+    uint256 public immutable weiSlopeDenominator;
 
-    // Hypothetical Y intercept parameter 'b' in the equation y = ax + b.
+    // Y intercept parameter 'b' in the equation y = ax + b.
     uint256 public immutable weiIntercept;
 
-    // X point where the constant curve becomes linear.
+    // Value of X where the constant curve becomes linear.
     uint256 public immutable linearBeginsAt;
 
     /**
      * @dev Contract constructor initializes parameters for the almost linear price curve.
      * @param _weiSlopeNumerator Numerator for the slope parameter 'a'.
      * @param _weiSlopeDenominator Denominator for the slope parameter 'a'.
-     * @param _weiIntercept Hypothetical Y intercept parameter 'b'.
-     * @param _linearBeginsAt X point where the constant curve becomes linear.
+     * @param _weiIntercept Y intercept parameter 'b'.
+     * @param _linearBeginsAt Value of X where the constant curve becomes linear.
      */
     constructor(
         uint256 _weiSlopeNumerator,
@@ -42,7 +42,7 @@ contract AlmostLinearPriceCurve is IAlmostLinearPriceCurve {
         uint256 _linearBeginsAt
     ) {
         weiSlopeNumerator = _weiSlopeNumerator;
-        weiSlopeDeNominator = _weiSlopeDenominator;
+        weiSlopeDenominator = _weiSlopeDenominator;
         weiIntercept = _weiIntercept;
         linearBeginsAt = _linearBeginsAt;
     }
@@ -56,7 +56,7 @@ contract AlmostLinearPriceCurve is IAlmostLinearPriceCurve {
         if (currentSupply < linearBeginsAt) {
             currentSupply = linearBeginsAt;
         }
-        return (weiSlopeNumerator * (currentSupply + 1) * (10 ** decimals)) / weiSlopeDeNominator + weiIntercept;
+        return (weiSlopeNumerator * (currentSupply + 1) * (10 ** decimals)) / weiSlopeDenominator + weiIntercept;
     }
 
     /**
