@@ -41,7 +41,7 @@ contract BBB is
 
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
     // bytes32 public constant MODERATOR_ROLE = 0x71f3d55856e4058ed06ee057d79ada615f65cdf5f9ee88181b914225088f834f;
-    
+
     // Configurable
     address payable public protocolFeeRecipient;
     uint256 public protocolFeePoints; // 50 = 5%
@@ -352,6 +352,7 @@ contract BBB is
         return ERC1155URIStorage.uri(tokenId);
     }
 
+    // Implementation of abstract function in ERC1155Supply
     function _update(
         address from,
         address to,
@@ -361,9 +362,7 @@ contract BBB is
         internal
         override(ERC1155, ERC1155Supply)
     {
-        // Required to implment because ERC1155Supply is abstract.
-        // Do not call super. Token God Mode is not required.
-        // super._update(from, to, ids, values);
+        super._update(from, to, ids, values);
     }
 
     function supportsInterface(bytes4 interfaceId)
