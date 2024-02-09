@@ -39,8 +39,9 @@ contract BBB is
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
 
-    // bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
-    bytes32 public constant MODERATOR_ROLE = 0x71f3d55856e4058ed06ee057d79ada615f65cdf5f9ee88181b914225088f834f;
+    bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
+    // bytes32 public constant MODERATOR_ROLE = 0x71f3d55856e4058ed06ee057d79ada615f65cdf5f9ee88181b914225088f834f;
+    
     // Configurable
     address payable public protocolFeeRecipient;
     uint256 public protocolFeePoints; // 50 = 5%
@@ -74,12 +75,6 @@ contract BBB is
     error SignatureError(ECDSA.RecoverError, bytes32);
     error InvalidRecipient();
     error CannotBurnLastToken();
-
-    // Modifiers
-    modifier onlyModerator() {
-        if (!hasRole(MODERATOR_ROLE, msg.sender)) revert InvalidRole();
-        _;
-    }
 
     // Events
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
@@ -205,22 +200,22 @@ contract BBB is
     }
 
     /// @notice Allows the Moderator to add or remove price models
-    function setAllowedPriceModel(address priceModel, bool allowed) external onlyModerator {
+    function setAllowedPriceModel(address priceModel, bool allowed) external onlyRole(MODERATOR_ROLE) {
         _setAllowedPriceModel(priceModel, allowed);
     }
 
     /// @notice Changing the protocol fee mid-way won't break royalty calculations
-    function setProtocolFeePoints(uint256 newProtocolFeePoints) external onlyModerator {
+    function setProtocolFeePoints(uint256 newProtocolFeePoints) external onlyRole(MODERATOR_ROLE) {
         _setProtocolFeePoints(newProtocolFeePoints);
     }
 
     /// @notice Changing the creator fee mid-way won't break royalty calculations
-    function setCreatorFeePoints(uint256 newCreatorFeePoints) external onlyModerator {
+    function setCreatorFeePoints(uint256 newCreatorFeePoints) external onlyRole(MODERATOR_ROLE) {
         _setCreatorFeePoints(newCreatorFeePoints);
     }
 
     /// @notice Changing the protocol fee recipient mid-way won't break royalty calculations
-    function setProtocolFeeRecipient(address payable newProtocolFeeRecipient) external onlyModerator {
+    function setProtocolFeeRecipient(address payable newProtocolFeeRecipient) external onlyRole(MODERATOR_ROLE) {
         _setProtocolFeeRecipient(newProtocolFeeRecipient);
     }
 
