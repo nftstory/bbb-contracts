@@ -5,8 +5,6 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
-// import { IERC1155MetadataURI } from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
-
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import { ERC1155Burnable } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 
@@ -48,20 +46,20 @@ contract BBB is
     uint256 public protocolFeePoints; // 50 = 5%
     uint256 public creatorFeePoints; // 50 = 5%
 
-    // Total number of token IDs
+    // Total number of extant token IDs
     uint256 public totalIds;
 
     // Maps price models to their allowed state
     mapping(address => bool) public allowedpriceModels;
 
     // Maps token IDs to their price models
-    mapping(uint256 => address) public tokenIdTopriceModel;
+    mapping(uint256 => address) public tokenIdToPriceModel;
 
     // Maps URIs to their token IDs
     mapping(string => uint256) public uriToTokenId;
 
     // Maps token IDs to their creators' addresses
-    mapping(uint256 => address) public creators;
+    mapping(uint256 => address) public tokenIdToCreator;
 
     // Errors
     error InvalidRole();
@@ -111,6 +109,10 @@ contract BBB is
         _setAllowedPriceModel(address(new AlmostLinearPriceCurve(1, 10_000, 0, 9)), true);
     }
 
+    /**
+     * @notice Fallback function to revert any ETH sent to the contract
+     * @dev Prevents accidental ETH transfers to the contract
+     */
     receive() external payable {
         revert InvalidRecipient();
     }
@@ -130,13 +132,8 @@ contract BBB is
         payable
         nonReentrant
     {
-        // TODO Andy commented the line below
-        // Reasoning: Shoot first, ask questions later. We could be checking for every possible error here.
-        // It's not our job to babysit users.
-        // if (amount == 0) revert InvalidAmount();
-
+        // If the URI has already been minted, mint the existing token ID
         if (uriToTokenId[data.uri] != 0) {
-            /// Mint using existing token ID so multiple txns don't fail
             uint256 tokenId = uriToTokenId[data.uri];
             uint256 supplyBeforeMint = totalSupply(tokenId);
 
@@ -144,8 +141,8 @@ contract BBB is
             return _handleBuy(
                 msg.sender,
                 msg.value,
-                IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]),
-                creators[tokenId],
+                IAlmostLinearPriceCurve(tokenIdToPriceModel[tokenId]),
+                tokenIdToCreator[tokenId],
                 supplyBeforeMint,
                 amount
             );
@@ -156,8 +153,8 @@ contract BBB is
         uint256 newTokenId = ++totalIds;
 
         // Store the mint intent data
-        creators[newTokenId] = data.creator;
-        tokenIdTopriceModel[newTokenId] = data.priceModel;
+        tokenIdToCreator[newTokenId] = data.creator;
+        tokenIdToPriceModel[newTokenId] = data.priceModel;
         uriToTokenId[data.uri] = newTokenId;
 
         _mint(msg.sender, newTokenId, amount, "");
@@ -174,7 +171,6 @@ contract BBB is
      */
     function mint(uint256 tokenId, uint256 amount) public payable nonReentrant {
         // Checks-effects-interactions pattern
-        // if (amount == 0) revert InvalidAmount();
         if (!exists(tokenId)) revert TokenDoesNotExist();
 
         uint256 supplyBeforeMint = totalSupply(tokenId);
@@ -184,8 +180,8 @@ contract BBB is
         _handleBuy(
             msg.sender,
             msg.value,
-            IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]),
-            creators[tokenId],
+            IAlmostLinearPriceCurve(tokenIdToPriceModel[tokenId]),
+            tokenIdToCreator[tokenId],
             supplyBeforeMint,
             amount
         );
@@ -198,10 +194,11 @@ contract BBB is
      */
     function burn(uint256 tokenId, uint256 amount) external nonReentrant {
         if (!exists(tokenId)) revert TokenDoesNotExist();
-        // if (amount == 0) revert InvalidAmount(); // TODO Andy commented the line
 
-        uint256 supplyAfterBurn = totalSupply(tokenId) - amount; // This will be the supply after the burn
-        if (supplyAfterBurn == 0) revert CannotBurnLastToken();
+        uint256 supplyAfterBurn = totalSupply(tokenId) - amount; // This will be the supply after the burn. This will
+            // revert if amount > totalSupply.
+        if (supplyAfterBurn == 0) revert CannotBurnLastToken(); // Burning the last token is disabled to avoid the token
+            // ID being reused.
 
         _burn(msg.sender, tokenId, amount);
         _handleSell(msg.sender, tokenId, supplyAfterBurn, amount);
@@ -248,6 +245,7 @@ contract BBB is
         protocolFeeRecipient = newProtocolFeeRecipient;
         emit ProtocolFeeRecipientChanged(newProtocolFeeRecipient);
     }
+
     /**
      * @param buyer The address of the buyer
      * @param msgValue The amount of ETH sent by the buyer
@@ -256,7 +254,6 @@ contract BBB is
      * @param supplyBeforeMint The supply of the token before minting
      * @param mintAmount The amount of tokens minted
      */
-
     function _handleBuy(
         address buyer,
         uint256 msgValue,
@@ -289,10 +286,10 @@ contract BBB is
      * @param burnAmount The amount of tokens burned
      */
     function _handleSell(address seller, uint256 tokenId, uint256 supplyAfterBurn, uint256 burnAmount) internal {
-        address creator = creators[tokenId];
+        address creator = tokenIdToCreator[tokenId];
 
         (uint256 basePrice, uint256 protocolFee, uint256 creatorFee) = _handleRoyalties(
-            IAlmostLinearPriceCurve(tokenIdTopriceModel[tokenId]), creator, supplyAfterBurn, burnAmount
+            IAlmostLinearPriceCurve(tokenIdToPriceModel[tokenId]), creator, supplyAfterBurn, burnAmount
         );
         // Seller gets the base price minus protocol fee minus creator fee
         Address.sendValue(payable(seller), basePrice - protocolFee - creatorFee);
@@ -369,8 +366,9 @@ contract BBB is
         internal
         override(ERC1155, ERC1155Supply)
     {
-        // TODO just revert and don't call super -- no one needs to this power
-        super._update(from, to, ids, values);
+        // Required to implment because ERC1155Supply is abstract.
+        // Do not call super. Token God Mode is not required.
+        // super._update(from, to, ids, values);
     }
 
     function supportsInterface(bytes4 interfaceId)
@@ -383,13 +381,4 @@ contract BBB is
         return AccessControl.supportsInterface(interfaceId) || ERC1155.supportsInterface(interfaceId)
             || super.supportsInterface(interfaceId);
     }
-
-    // ========== STILL IN CONSIDERATION ==========
-    // function pause() external onlyRole(MODERATOR_ROLE) {
-    //     _pause();
-    // }
-
-    // function unpause() external onlyRole(MODERATOR_ROLE) {
-    //     _unpause();
-    // }
 }
