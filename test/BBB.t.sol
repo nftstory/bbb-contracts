@@ -75,8 +75,8 @@ contract BBBTest is StdCheats, Test {
         assertEq(
             bbb.getRoleAdmin(bytes32(keccak256("DEFAULT_ADMIN_ROLE"))), bytes32(uint256(uint160(address(0))) << 96)
         );
-        // Assert that MODERTOR_ROLE has no admin
-        assertEq(abi.encode(bbb.getRoleAdmin(bytes32(keccak256("MODERATOR_ROLE")))), abi.encode(address(0)));
+        // Assert that MODERTOR_ROLE is it's own admin
+        assertEq(bbb.getRoleAdmin(bytes32(keccak256("MODERATOR_ROLE"))), bytes32(keccak256("MODERATOR_ROLE")));
         // Assert that moderator has MODERATOR_ROLE
         assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), moderator), true);
         // Assert that this test contract does not have DEFAULT_ADMIN_ROLE
@@ -195,7 +195,7 @@ contract BBBTest is StdCheats, Test {
         // console2.log("x", x);
 
         assertEq(finalBalance, initialBalance - N * (mintProtocolFee + mintCreatorFee) - price / 2);
-        assertEq(address(protocolFeeRecipient).balance,  N * mintProtocolFee);
+        assertEq(address(protocolFeeRecipient).balance, N * mintProtocolFee);
         assertEq(address(creator).balance, N * mintCreatorFee);
     }
 

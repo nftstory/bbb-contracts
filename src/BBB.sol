@@ -40,7 +40,6 @@ contract BBB is
     // recipient
 
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
-    // bytes32 public constant MODERATOR_ROLE = 0x71f3d55856e4058ed06ee057d79ada615f65cdf5f9ee88181b914225088f834f;
 
     // Configurable
     address payable public protocolFeeRecipient;
@@ -75,6 +74,7 @@ contract BBB is
     error SignatureError(ECDSA.RecoverError, bytes32);
     error InvalidRecipient();
     error CannotBurnLastToken();
+    error RoleTransferFailed();
 
     // Events
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
@@ -97,6 +97,7 @@ contract BBB is
         if (_moderator == address(0)) revert InvalidAddress();
 
         _grantRole(MODERATOR_ROLE, _moderator);
+        _setRoleAdmin(MODERATOR_ROLE, MODERATOR_ROLE); // Make the Moderator it's own admin
         _setProtocolFeeRecipient(_protocolFeeRecipient);
         _setProtocolFeePoints(_protocolFeePoints);
         _setCreatorFeePoints(_creatorFeePoints);
@@ -110,6 +111,22 @@ contract BBB is
      */
     receive() external payable {
         revert InvalidRecipient();
+    }
+
+    /**
+     * @notice Transfer the MODERATOR_ROLE to a new address
+     * @dev Only the current role holder can transfer the role.
+     * @param newHolder The address of the new role holder
+     */
+    function transferModeratorRole(address newHolder) external onlyRole(MODERATOR_ROLE) {
+        if (newHolder == address(0)) revert InvalidAddress(); // Use renounce instead
+        if (newHolder == _msgSender()) revert InvalidAddress(); // Redundant
+        grantRole(MODERATOR_ROLE, newHolder); // Grant the role to the new holder
+        _revokeRole(MODERATOR_ROLE, _msgSender()); // Revoke the role from the current holder. Using _msgSender() to
+            // ensure we perform the same check as onlyRole does (inherited from Context.sol)
+        if (!hasRole(MODERATOR_ROLE, newHolder)) revert RoleTransferFailed(); // Ensure the role transfer was successful
+        if (hasRole(MODERATOR_ROLE, _msgSender())) revert RoleTransferFailed(); // Ensure the role was successfully
+            // revoked
     }
 
     /**
