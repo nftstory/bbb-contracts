@@ -183,7 +183,8 @@ contract BBB is
      */
     function mint(uint256 tokenId, uint256 amount) public payable nonReentrant {
         // Checks-effects-interactions pattern
-        if (!exists(tokenId)) revert TokenDoesNotExist();
+        if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
+            // exists
 
         uint256 supplyBeforeMint = totalSupply(tokenId);
 
@@ -209,8 +210,6 @@ contract BBB is
 
         uint256 supplyAfterBurn = totalSupply(tokenId) - amount; // This will be the supply after the burn. This will
             // revert if amount > totalSupply.
-        if (supplyAfterBurn == 0) revert CannotBurnLastToken(); // Burning the last token is disabled to avoid the token
-            // ID being reused.
 
         _burn(msg.sender, tokenId, amount);
         _handleSell(msg.sender, tokenId, supplyAfterBurn, amount);
