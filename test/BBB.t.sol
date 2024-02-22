@@ -116,6 +116,9 @@ contract BBBTest is StdCheats, Test {
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
         (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+
+        uint256 tokenId = uint256(digest);
+        console2.log("tokenId:", tokenId);
         bytes memory signature = toBytesSignature(v, r, s);
 
         (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, signature); // TODO
@@ -136,7 +139,7 @@ contract BBBTest is StdCheats, Test {
 
         bbb.mintWithIntent{ value: total }(data, amount, signature);
         // Assert that the buyer has the NFT
-        assertEq(bbb.balanceOf(buyer, 1), amount);
+        assertEq(bbb.balanceOf(buyer, tokenId), amount);
         // Assert that the protocol fee recipient has the protocol fee
         assertEq(address(protocolFeeRecipient).balance, protocolFeeAmount);
         // Assert that the creator has the creator fee
@@ -146,7 +149,8 @@ contract BBBTest is StdCheats, Test {
 
     function test_mint_no_intent() external {
         uint256 amount = 1;
-
+        uint256 tokenId =
+            25_951_155_603_938_650_249_890_663_414_884_298_295_778_319_386_545_382_981_197_812_827_133_397_353_612;
         uint256 firstPrice = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, 2);
         test_mint_with_intent(); // mint with intent to issue tokenId 1
 
@@ -155,10 +159,10 @@ contract BBBTest is StdCheats, Test {
 
         vm.startPrank(buyer, buyer);
         // (, address msgSender, address txOrigin) = vm.readCallers();
-        bbb.mint{ value: 2 * secondPrice }(1, 1);
+        bbb.mint{ value: 2 * secondPrice }(tokenId, 1);
         vm.stopPrank();
         // Assert that the buyer has the NFT
-        assertEq(bbb.balanceOf(buyer, 1), amount + 2);
+        assertEq(bbb.balanceOf(buyer, tokenId), amount + 2);
         // Assert that the protocol fee recipient has the protocol fee
         assertEq(address(protocolFeeRecipient).balance, protocolFee * (firstPrice + secondPrice) / 1000);
         // Assert that the creator has the creator fee
@@ -170,7 +174,8 @@ contract BBBTest is StdCheats, Test {
         uint256 mintAmount = 2;
         uint256 burnAmount = 1;
         uint256 N = mintAmount + burnAmount;
-
+        uint256 tokenId =
+            25_951_155_603_938_650_249_890_663_414_884_298_295_778_319_386_545_382_981_197_812_827_133_397_353_612;
         uint256 initialBalance = address(buyer).balance;
 
         test_mint_with_intent(); // mint with intent to issue tokenId 1
@@ -185,10 +190,10 @@ contract BBBTest is StdCheats, Test {
 
         vm.startPrank(buyer, buyer);
         // (, address msgSender, address txOrigin) = vm.readCallers();
-        bbb.burn(1, burnAmount);
+        bbb.burn(tokenId, burnAmount);
         vm.stopPrank();
 
-        assertEq(bbb.balanceOf(buyer, 1), 1);
+        assertEq(bbb.balanceOf(buyer, tokenId), 1);
 
         uint256 finalBalance = address(buyer).balance;
         // console2.log("balanceDIff", initialBalance - finalBalance);

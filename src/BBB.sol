@@ -56,7 +56,10 @@ contract BBB is
     mapping(uint256 => address) public tokenIdToPriceModel;
 
     // Maps mint intent hashes to their token IDs
-    mapping(bytes32 => uint256) public hashToTokenId;
+    mapping(uint256 => uint256) public tokenIdToNum;
+
+    // Maps token numbers to their token IDs
+    mapping(uint256 => uint256) public tokenNumToId;
 
     // Maps token IDs to their creators' addresses
     mapping(uint256 => address) public tokenIdToCreator;
@@ -77,6 +80,7 @@ contract BBB is
     error RoleTransferFailed();
 
     // Events
+    event Transfer(address indexed from, address indexed to, bytes32 indexed tokenHash, uint256 amount);
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address newProtocolFeeRecipient);
@@ -152,10 +156,9 @@ contract BBB is
                 )
             )
         );
-
-        // If the URI has already been minted, mint the existing token ID
-        if (hashToTokenId[mintIntentHash] != 0) {
-            uint256 tokenId = hashToTokenId[mintIntentHash];
+        uint256 tokenId = uint256(mintIntentHash);
+        // If the token has already been minted, mint without the intent
+        if (tokenIdToNum[tokenId] != 0) {
             uint256 supplyBeforeMint = totalSupply(tokenId);
 
             _mint(msg.sender, tokenId, amount, "");
@@ -173,16 +176,19 @@ contract BBB is
         // Recover the signer of the MintIntent
         if (!SignatureChecker.isValidSignatureNow(data.signer, mintIntentHash, signature)) revert InvalidIntent();
 
-        uint256 newTokenId = ++totalIds;
+        uint256 tokenNum = ++totalIds;
 
         // Store the mint intent data
-        tokenIdToCreator[newTokenId] = data.creator;
-        tokenIdToPriceModel[newTokenId] = data.priceModel;
-        hashToTokenId[mintIntentHash] = newTokenId;
+        tokenIdToCreator[tokenId] = data.creator;
+        tokenIdToPriceModel[tokenId] = data.priceModel;
 
-        _mint(msg.sender, newTokenId, amount, "");
+        // Enumerate the token
+        tokenIdToNum[tokenId] = tokenNum;
+        tokenNumToId[tokenNum] = tokenId;
+
+        _mint(msg.sender, tokenId, amount, "");
         // ERC1155URIStorage
-        _setURI(newTokenId, data.uri);
+        _setURI(tokenId, data.uri);
 
         _handleBuy(msg.sender, msg.value, IAlmostLinearPriceCurve(data.priceModel), data.creator, 0, amount);
     }
