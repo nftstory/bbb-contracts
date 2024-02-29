@@ -202,7 +202,8 @@ contract BBB is
         // Checks-effects-interactions pattern
         // if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
         // // exists
-        if (!exists(tokenId)) revert TokenDoesNotExist(); // Now possible
+        if (tokenIdToNum[tokenId] == 0) revert TokenDoesNotExist(); // If a num is set for this tokenID then it exists
+            // regardless of supply
 
         uint256 supplyBeforeMint = totalSupply(tokenId);
 
