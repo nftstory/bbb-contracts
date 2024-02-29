@@ -106,7 +106,7 @@ contract BBB is
         _setProtocolFeePoints(_protocolFeePoints);
         _setCreatorFeePoints(_creatorFeePoints);
         // Creates a default price model, first 10 are constant, then linear increase.
-        _setAllowedPriceModel(address(new AlmostLinearPriceCurve(1, 10_000, 0, 9)), true);
+        _setAllowedPriceModel(address(new AlmostLinearPriceCurve(2, 10_000, 800_000_000_000_000, 0)), true);
     }
 
     /**
