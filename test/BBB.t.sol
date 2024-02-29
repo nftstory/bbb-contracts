@@ -204,6 +204,7 @@ contract BBBTest is StdCheats, Test {
         assertEq(address(creator).balance, N * mintCreatorFee);
     }
 
+
     // TODO Test what happens if the last one is burned and a new person tries to mint
 
     /*//////////////////////////////////////////////////////////////

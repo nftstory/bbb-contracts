@@ -200,8 +200,9 @@ contract BBB is
      */
     function mint(uint256 tokenId, uint256 amount) public payable nonReentrant {
         // Checks-effects-interactions pattern
-        if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
-            // exists
+        // if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
+        // // exists
+        if (!exists(tokenId)) revert TokenDoesNotExist(); // Now possible
 
         uint256 supplyBeforeMint = totalSupply(tokenId);
 
