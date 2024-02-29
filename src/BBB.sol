@@ -55,8 +55,11 @@ contract BBB is
     // Maps token IDs to their price models
     mapping(uint256 => address) public tokenIdToPriceModel;
 
-    // Maps URIs to their token IDs
-    mapping(string => uint256) public uriToTokenId;
+    // Maps mint intent hashes to their token IDs
+    mapping(uint256 => uint256) public tokenIdToNum;
+
+    // Maps token numbers to their token IDs
+    mapping(uint256 => uint256) public tokenNumToId;
 
     // Maps token IDs to their creators' addresses
     mapping(uint256 => address) public tokenIdToCreator;
@@ -77,6 +80,7 @@ contract BBB is
     error RoleTransferFailed();
 
     // Events
+    event Transfer(address indexed from, address indexed to, bytes32 indexed tokenHash, uint256 amount);
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address newProtocolFeeRecipient);
@@ -144,9 +148,17 @@ contract BBB is
         payable
         nonReentrant
     {
-        // If the URI has already been minted, mint the existing token ID
-        if (uriToTokenId[data.uri] != 0) {
-            uint256 tokenId = uriToTokenId[data.uri];
+        // Get the digest of the MintIntent
+        bytes32 mintIntentHash = _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    MINT_INTENT_TYPE_HASH, data.creator, data.signer, data.priceModel, keccak256(bytes(data.uri))
+                )
+            )
+        );
+        uint256 tokenId = uint256(mintIntentHash);
+        // If the token has already been minted, mint without the intent
+        if (tokenIdToNum[tokenId] != 0) {
             uint256 supplyBeforeMint = totalSupply(tokenId);
 
             _mint(msg.sender, tokenId, amount, "");
@@ -159,19 +171,24 @@ contract BBB is
                 amount
             );
         }
+        if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
 
-        if (!isValidMintIntent(data, signature)) revert InvalidIntent();
+        // Recover the signer of the MintIntent
+        if (!SignatureChecker.isValidSignatureNow(data.signer, mintIntentHash, signature)) revert InvalidIntent();
 
-        uint256 newTokenId = ++totalIds;
+        uint256 tokenNum = ++totalIds;
 
         // Store the mint intent data
-        tokenIdToCreator[newTokenId] = data.creator;
-        tokenIdToPriceModel[newTokenId] = data.priceModel;
-        uriToTokenId[data.uri] = newTokenId;
+        tokenIdToCreator[tokenId] = data.creator;
+        tokenIdToPriceModel[tokenId] = data.priceModel;
 
-        _mint(msg.sender, newTokenId, amount, "");
+        // Enumerate the token
+        tokenIdToNum[tokenId] = tokenNum;
+        tokenNumToId[tokenNum] = tokenId;
+
+        _mint(msg.sender, tokenId, amount, "");
         // ERC1155URIStorage
-        _setURI(newTokenId, data.uri);
+        _setURI(tokenId, data.uri);
 
         _handleBuy(msg.sender, msg.value, IAlmostLinearPriceCurve(data.priceModel), data.creator, 0, amount);
     }
@@ -183,8 +200,9 @@ contract BBB is
      */
     function mint(uint256 tokenId, uint256 amount) public payable nonReentrant {
         // Checks-effects-interactions pattern
-        if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
-            // exists
+        // if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
+        // // exists
+        if (!exists(tokenId)) revert TokenDoesNotExist(); // Now possible
 
         uint256 supplyBeforeMint = totalSupply(tokenId);
 
