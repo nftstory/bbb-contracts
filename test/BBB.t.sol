@@ -109,9 +109,10 @@ contract BBBTest is StdCheats, Test {
         assertEq(signer, recoveredSigner); // [PASS]
     }
 
-    function test_mint_with_intent() public {
-        uint256 amount = 2;
-
+    function test_mint_with_intent(uint256 amount) public {
+        // Amount should really be under 100
+        vm.assume(amount > 0);
+        vm.assume(amount < 100); // TODO add a require in the contract
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
@@ -132,7 +133,6 @@ contract BBBTest is StdCheats, Test {
         console2.log("Price", price); // 1_000_000_000_000_000
         // uint256 price = 1 ether;
 
-        // TODO add protocol fees, for now just bump the price
         // Become the buyer
         vm.startPrank(buyer, buyer);
         // Mint with intent
@@ -147,62 +147,168 @@ contract BBBTest is StdCheats, Test {
         vm.stopPrank();
     }
 
-    function test_mint_no_intent() external {
-        uint256 amount = 1;
-        uint256 tokenId =
-            25_951_155_603_938_650_249_890_663_414_884_298_295_778_319_386_545_382_981_197_812_827_133_397_353_612;
-        uint256 firstPrice = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, 2);
-        test_mint_with_intent(); // mint with intent to issue tokenId 1
+    function test_mint(uint256 amount_intent, uint256 amount_no_intent) external {
+        vm.assume(amount_intent > 0 || amount_no_intent > 0);
+        vm.assume(amount_intent < 100); // TODO add a require in the contract
+        vm.assume(amount_no_intent < 100); // TODO add a require in the contract
+        vm.assume(amount_intent + amount_no_intent < 100); // TODO add a require in the contract
 
-        // The currentSupply in this case is 1 as we just minted it with the intent above
-        uint256 secondPrice = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(1);
+        // If amount_intent is 0 and amount_no_intent is >0, it should fail
 
+        // First mint with intent
+        test_mint_with_intent(amount_intent);
+        // Then mint without intent
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
+
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+
+        uint256 tokenId = uint256(digest);
+
+        // Get the price from the price model
+        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(amount_intent, amount_no_intent);
+        uint256 protocolFeeAmount = protocolFee * price / 1000;
+        uint256 creatorFeeAmount = creatorFee * price / 1000;
+        uint256 total = price + protocolFeeAmount + creatorFeeAmount;
+
+        // Get the protocol and creator balance before
+        uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
+        uint256 creatorBalanceBefore = address(creator).balance;
+
+        // Become the buyer
         vm.startPrank(buyer, buyer);
-        // (, address msgSender, address txOrigin) = vm.readCallers();
-        bbb.mint{ value: 2 * secondPrice }(tokenId, 1);
-        vm.stopPrank();
+        // Mint with intent
+        bbb.mint{ value: total }(tokenId, amount_no_intent);
         // Assert that the buyer has the NFT
-        assertEq(bbb.balanceOf(buyer, tokenId), amount + 2);
-        // Assert that the protocol fee recipient has the protocol fee
-        assertEq(address(protocolFeeRecipient).balance, protocolFee * (firstPrice + secondPrice) / 1000);
-        // Assert that the creator has the creator fee
-        assertEq(address(creator).balance, creatorFee * (firstPrice + secondPrice) / 1000);
+        assertEq(bbb.balanceOf(buyer, tokenId), amount_intent + amount_no_intent);
+        // Assert that the protocol fee recipient has the protocol fee (only the new protocol fee)
+        assertEq(address(protocolFeeRecipient).balance, protocolBalanceBefore + protocolFeeAmount);
+        // Assert that the creator has the creator fee (only the new creator fee)
+        assertEq(address(creator).balance, creatorBalanceBefore + creatorFeeAmount);
     }
 
-    function test_burn() external {
+    function test_burn(uint256 mint_amount, uint256 burn_amount) external {
         // vm.pauseGasMetering();
-        uint256 mintAmount = 2;
-        uint256 burnAmount = 1;
-        uint256 N = mintAmount + burnAmount;
-        uint256 tokenId =
-            25_951_155_603_938_650_249_890_663_414_884_298_295_778_319_386_545_382_981_197_812_827_133_397_353_612;
-        uint256 initialBalance = address(buyer).balance;
+        vm.assume(mint_amount > 0);
+        // vm.assume(burn_amount > 0);
+        vm.assume(mint_amount >= burn_amount);
 
-        test_mint_with_intent(); // mint with intent to issue tokenId 1
-        // The currentSupply in this case is 1 as we just minted it with the intent above
-        uint256 priceSingle = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(0);
-        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mintAmount);
-        uint256 mintProtocolFee = priceSingle * protocolFee / 1000;
-        uint256 mintCreatorFee = priceSingle * creatorFee / 1000;
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
-        // The price of minting 2 tokens, burning one (refund) => 3 * mintProtocolFee + 3 * mintCreatorFee
-        // uint256 x = (price - priceSingle) + 3*(mintProtocolFee + mintCreatorFee);
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
 
+        uint256 tokenId = uint256(digest);
+
+        uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
+        uint256 creatorBalanceBefore = address(creator).balance;
+        // Mint with intent
+        test_mint_with_intent(mint_amount);
+        assertEq(bbb.balanceOf(buyer, tokenId), mint_amount);
+        // Get the price from the price model
+        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mint_amount);
+        uint256 protocolFeeAmount = protocolFee * price / 1000;
+        uint256 creatorFeeAmount = creatorFee * price / 1000;
+
+        assertEq(address(protocolFeeRecipient).balance, protocolBalanceBefore + protocolFeeAmount);
+        assertEq(address(creator).balance, creatorBalanceBefore + creatorFeeAmount);
+
+        // Become the buyer
         vm.startPrank(buyer, buyer);
-        // (, address msgSender, address txOrigin) = vm.readCallers();
-        bbb.burn(tokenId, burnAmount);
+        // Mint with intent
+        bbb.burn(tokenId, burn_amount);
         vm.stopPrank();
+        uint256 refundPrice =
+            IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(mint_amount - burn_amount, burn_amount);
+        uint256 refundProtocolFeeAmount = protocolFee * refundPrice / 1000;
+        uint256 refundCreatorFeeAmount = creatorFee * refundPrice / 1000;
 
-        assertEq(bbb.balanceOf(buyer, tokenId), 1);
-
-        uint256 finalBalance = address(buyer).balance;
-        // console2.log("balanceDIff", initialBalance - finalBalance);
-        // console2.log("x", x);
-
-        assertEq(finalBalance, initialBalance - N * (mintProtocolFee + mintCreatorFee) - price / 2);
-        assertEq(address(protocolFeeRecipient).balance, N * mintProtocolFee);
-        assertEq(address(creator).balance, N * mintCreatorFee);
+        // Assert that the protocol fee recipient has the correct protocol fee
+        assertEq(
+            address(protocolFeeRecipient).balance, protocolBalanceBefore + protocolFeeAmount + refundProtocolFeeAmount
+        );
+        // Assert that the creator has the correct creator fee
+        assertEq(address(creator).balance, creatorBalanceBefore + creatorFeeAmount + refundCreatorFeeAmount);
+        // Assert that the buyer has the correct NFT balance
+        assertEq(bbb.balanceOf(buyer, tokenId), mint_amount - burn_amount);
     }
+
+    function test_transfer_moderator_role(address new_moderator) external {
+        // TODO
+        vm.assume(new_moderator != moderator);
+        vm.assume(new_moderator != address(0));
+
+        // Assert that the current moderator has the MODERATOR_ROLE
+        assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), moderator), true);
+        // Transfer the moderator role
+        vm.startPrank(moderator, moderator);
+        bbb.transferModeratorRole(new_moderator);
+        vm.stopPrank();
+        // Assert that the new moderator has the MODERATOR_ROLE
+        assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), new_moderator), true);
+        // Assert that the old moderator does not have the MODERATOR_ROLE
+        assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), moderator), false);
+    }
+
+    // function test_mint_no_intent() external {
+    //     uint256 amount = 1;
+    //     uint256 tokenId =
+    //         25_951_155_603_938_650_249_890_663_414_884_298_295_778_319_386_545_382_981_197_812_827_133_397_353_612;
+    //     uint256 firstPrice = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, 2);
+    //     test_mint_with_intent(); // mint with intent to issue tokenId 1
+
+    //     // The currentSupply in this case is 1 as we just minted it with the intent above
+    //     uint256 secondPrice = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(1);
+
+    //     vm.startPrank(buyer, buyer);
+    //     // (, address msgSender, address txOrigin) = vm.readCallers();
+    //     bbb.mint{ value: 2 * secondPrice }(tokenId, 1);
+    //     vm.stopPrank();
+    //     // Assert that the buyer has the NFT
+    //     assertEq(bbb.balanceOf(buyer, tokenId), amount + 2);
+    //     // Assert that the protocol fee recipient has the protocol fee
+    //     assertEq(address(protocolFeeRecipient).balance, protocolFee * (firstPrice + secondPrice) / 1000);
+    //     // Assert that the creator has the creator fee
+    //     assertEq(address(creator).balance, creatorFee * (firstPrice + secondPrice) / 1000);
+    // }
+
+    // function test_burn() external {
+    //     // vm.pauseGasMetering();
+    //     uint256 mintAmount = 2;
+    //     uint256 burnAmount = 1;
+    //     uint256 N = mintAmount + burnAmount;
+
+    //     uint256 tokenId =
+    //         25_951_155_603_938_650_249_890_663_414_884_298_295_778_319_386_545_382_981_197_812_827_133_397_353_612;
+    //     uint256 initialBalance = address(buyer).balance;
+
+    //     // mint with intent to issue tokenId 1
+    //     // The currentSupply in this case is 1 as we just minted it with the intent above
+    //     uint256 priceSingle = IAlmostLinearPriceCurve(initialPriceModel).getNextMintPrice(0);
+    //     uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mintAmount);
+    //     uint256 mintProtocolFee = priceSingle * protocolFee / 1000;
+    //     uint256 mintCreatorFee = priceSingle * creatorFee / 1000;
+
+    //     // The price of minting 2 tokens, burning one (refund) => 3 * mintProtocolFee + 3 * mintCreatorFee
+    //     // uint256 x = (price - priceSingle) + 3*(mintProtocolFee + mintCreatorFee);
+
+    //     test_mint_with_intent(); // mints 2 tokens
+    //     vm.startPrank(buyer, buyer);
+    //     // (, address msgSender, address txOrigin) = vm.readCallers();
+    //     bbb.burn(tokenId, burnAmount);
+    //     console2.log("token balance", bbb.balanceOf(buyer, tokenId));
+    //     vm.stopPrank();
+
+    //     assertEq(bbb.balanceOf(buyer, tokenId), mintAmount - burnAmount);
+
+    //     uint256 finalBalance = address(buyer).balance;
+    //     // console2.log("balanceDIff", initialBalance - finalBalance);
+    //     // console2.log("x", x);
+
+    //     // assertEq(finalBalance, initialBalance - N * (mintProtocolFee + mintCreatorFee) - price / 2);
+    //     // assertEq(address(protocolFeeRecipient).balance, N * mintProtocolFee);
+    //     // assertEq(address(creator).balance, N * mintCreatorFee);
+    // }
 
     // TODO Test what happens if the last one is burned and a new person tries to mint
 

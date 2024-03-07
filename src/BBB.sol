@@ -18,24 +18,14 @@ import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMA
 import { AlmostLinearPriceCurve, IAlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+// import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title bbb
  * @author nftstory
  */
-contract BBB is
-    AccessControl,
-    Pausable,
-    ReentrancyGuard,
-    ERC1155,
-    ERC1155URIStorage,
-    ERC1155Supply,
-    ERC1155Burnable,
-    EIP712,
-    Nonces
-{
+contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1155Supply, EIP712, Nonces {
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
 
@@ -105,7 +95,7 @@ contract BBB is
         _setProtocolFeeRecipient(_protocolFeeRecipient);
         _setProtocolFeePoints(_protocolFeePoints);
         _setCreatorFeePoints(_creatorFeePoints);
-        // Creates a default price model, first 10 are constant, then linear increase.
+        // Creates a default price model
         _setAllowedPriceModel(address(new AlmostLinearPriceCurve(2, 10_000, 800_000_000_000_000, 0)), true);
     }
 
