@@ -68,6 +68,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     error InvalidRecipient();
     error CannotBurnLastToken();
     error RoleTransferFailed();
+    error MinRefundNotMet();
 
     // Events
     event Transfer(address indexed from, address indexed to, bytes32 indexed tokenHash, uint256 amount);
@@ -130,9 +131,10 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param signature EIP-712 signature
      */
     function mintWithIntent(
-        MintIntent memory data,
+        address to,
         uint256 amount,
-        bytes memory signature
+        bytes memory signature,
+        MintIntent memory data
     )
         external
         payable
@@ -151,9 +153,9 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         if (tokenIdToNum[tokenId] != 0) {
             uint256 supplyBeforeMint = totalSupply(tokenId);
 
-            _mint(msg.sender, tokenId, amount, "");
+            _mint(to, tokenId, amount, "");
             return _handleBuy(
-                msg.sender,
+                to,
                 msg.value,
                 IAlmostLinearPriceCurve(tokenIdToPriceModel[tokenId]),
                 tokenIdToCreator[tokenId],
@@ -176,11 +178,11 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         tokenIdToNum[tokenId] = tokenNum;
         tokenNumToId[tokenNum] = tokenId;
 
-        _mint(msg.sender, tokenId, amount, "");
+        _mint(to, tokenId, amount, "");
         // ERC1155URIStorage
         _setURI(tokenId, data.uri);
 
-        _handleBuy(msg.sender, msg.value, IAlmostLinearPriceCurve(data.priceModel), data.creator, 0, amount);
+        _handleBuy(to, msg.value, IAlmostLinearPriceCurve(data.priceModel), data.creator, 0, amount);
     }
 
     /**
@@ -188,7 +190,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param tokenId ID of token to mint
      * @param amount Amount of tokens to mint
      */
-    function mint(uint256 tokenId, uint256 amount) public payable nonReentrant {
+    function mint(address to, uint256 tokenId, uint256 amount) public payable nonReentrant {
         // Checks-effects-interactions pattern
         // if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
         // // exists
@@ -197,10 +199,10 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
 
         uint256 supplyBeforeMint = totalSupply(tokenId);
 
-        _mint(msg.sender, tokenId, amount, "");
+        _mint(to, tokenId, amount, "");
 
         _handleBuy(
-            msg.sender,
+            to,
             msg.value,
             IAlmostLinearPriceCurve(tokenIdToPriceModel[tokenId]),
             tokenIdToCreator[tokenId],
@@ -213,15 +215,18 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @notice Burn ERC1155 token(s)
      * @param tokenId ID of token to burn
      * @param amount Amount of tokens to burn
+     * @param minRefund Minimum amount of ETH to refund or revert
      */
-    function burn(uint256 tokenId, uint256 amount) external nonReentrant {
+    function burn(uint256 tokenId, uint256 amount, uint256 minRefund) external nonReentrant {
         if (!exists(tokenId)) revert TokenDoesNotExist();
 
         uint256 supplyAfterBurn = totalSupply(tokenId) - amount; // This will be the supply after the burn. This will
             // revert if amount > totalSupply.
 
+        uint256 ethBalanceBefore = msg.sender.balance;
         _burn(msg.sender, tokenId, amount);
         _handleSell(msg.sender, tokenId, supplyAfterBurn, amount);
+        if (msg.sender.balance - ethBalanceBefore < minRefund) revert MinRefundNotMet();
     }
 
     /// @notice Allows the Moderator to add or remove price models

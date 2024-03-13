@@ -137,7 +137,7 @@ contract BBBTest is StdCheats, Test {
         vm.startPrank(buyer, buyer);
         // Mint with intent
 
-        bbb.mintWithIntent{ value: total }(data, amount, signature);
+        bbb.mintWithIntent{ value: total }(buyer, amount, signature, data);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, tokenId), amount);
         // Assert that the protocol fee recipient has the protocol fee
@@ -178,7 +178,7 @@ contract BBBTest is StdCheats, Test {
         // Become the buyer
         vm.startPrank(buyer, buyer);
         // Mint with intent
-        bbb.mint{ value: total }(tokenId, amount_no_intent);
+        bbb.mint{ value: total }(buyer, tokenId, amount_no_intent);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, tokenId), amount_intent + amount_no_intent);
         // Assert that the protocol fee recipient has the protocol fee (only the new protocol fee)
@@ -216,7 +216,7 @@ contract BBBTest is StdCheats, Test {
         // Become the buyer
         vm.startPrank(buyer, buyer);
         // Mint with intent
-        bbb.burn(tokenId, burn_amount);
+        bbb.burn(tokenId, burn_amount, 0); // To expect an exact minRefund we'd need to know the gas spent
         vm.stopPrank();
         uint256 refundPrice =
             IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(mint_amount - burn_amount, burn_amount);
