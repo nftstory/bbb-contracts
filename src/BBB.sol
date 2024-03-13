@@ -40,7 +40,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     uint256 public totalIds;
 
     // Maps price models to their allowed state
-    mapping(address => bool) public allowedpriceModels;
+    mapping(address => bool) public allowedPriceModels;
 
     // Maps token IDs to their price models
     mapping(uint256 => address) public tokenIdToPriceModel;
@@ -163,7 +163,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
                 amount
             );
         }
-        if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
+        if (!allowedPriceModels[data.priceModel]) revert InvalidPriceModel();
 
         // Recover the signer of the MintIntent
         if (!SignatureChecker.isValidSignatureNow(data.signer, mintIntentHash, signature)) revert InvalidIntent();
@@ -252,7 +252,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     // ========== Internal Functions ==========
 
     function _setAllowedPriceModel(address priceModel, bool allowed) internal {
-        allowedpriceModels[priceModel] = allowed;
+        allowedPriceModels[priceModel] = allowed;
         emit AllowedPriceModelsChanged(priceModel, allowed);
     }
 
@@ -361,7 +361,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      */
     function isValidMintIntent(MintIntent memory data, bytes memory signature) public view returns (bool) {
         // Moved this here
-        if (!allowedpriceModels[data.priceModel]) revert InvalidPriceModel();
+        if (!allowedPriceModels[data.priceModel]) revert InvalidPriceModel();
 
         // Get the digest of the MintIntent
         bytes32 digest = _hashTypedDataV4(
