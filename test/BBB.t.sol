@@ -25,9 +25,9 @@ contract BBBTest is StdCheats, Test {
     BBB bbb;
 
     // Constructor arguments
-    string name = "name";
+    string name = "bbb";
     string version = "1";
-    string uri = "demo_uri";
+    string uri = "ipfs://QmfANtwJzFMGBeJGwXEPdqViMcKdzkLQ8WxtTsQp3cXGuV";
     uint256 protocolFee = 50;
     uint256 creatorFee = 50;
 
@@ -48,7 +48,8 @@ contract BBBTest is StdCheats, Test {
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
-        vm.chainId(5);
+        // Base Mainnet chainId
+        vm.chainId(8453);
         // Assign signer an address and pk
         (signer, signerPk) = makeAddrAndKey("signer");
         console2.log(signer);
@@ -85,6 +86,20 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(bbb)), false);
     }
 
+    function test_unauthorized_role_actions() external {
+        vm.expectRevert();
+        vm.prank(address(0x000000000000000000000000000000000000dEaD));
+        bbb.setProtocolFeePoints(100);
+
+        vm.expectRevert();
+        vm.prank(address(0x000000000000000000000000000000000000dEaD));
+        bbb.setCreatorFeePoints(100);
+
+        vm.expectRevert();
+        vm.prank(address(0x000000000000000000000000000000000000dEaD));
+        bbb.setProtocolFeeRecipient(payable(0x000000000000000000000000000000000000baBe));
+    }
+
     // Example signature recovery test from Forge vm.sign
     // https://book.getfoundry.sh/cheatcodes/sign
     function test_sign_vrs() external {
@@ -111,7 +126,6 @@ contract BBBTest is StdCheats, Test {
 
     function test_mint_with_intent(uint256 amount) public {
         // Amount should really be under 100
-        vm.assume(amount > 0);
         vm.assume(amount < 100); // TODO add a require in the contract
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
@@ -144,6 +158,41 @@ contract BBBTest is StdCheats, Test {
         assertEq(address(protocolFeeRecipient).balance, protocolFeeAmount);
         // Assert that the creator has the creator fee
         assertEq(address(creator).balance, creatorFeeAmount);
+        vm.stopPrank();
+    }
+
+    function test_mint_with_wrong_signature(uint256 amount) public {
+        // Amount should really be under 100
+        vm.assume(amount > 0);
+        vm.assume(amount < 100); // TODO add a require in the contract
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
+
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+
+        uint256 tokenId = uint256(digest);
+        console2.log("tokenId:", tokenId);
+        // bytes memory signature = toBytesSignature(v, r, s);
+        bytes memory signature =
+            hex"ac7f2f5d4bf713823ad28ffc7fc51bbf31134e6ba0c2c65bee568212a2544d152848e39e5bff75e895482928e3ffed9e2ada2f754c1aa19f9b361c952b698e511b";
+
+        // (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, signature); // TODO
+        // assertEq(intentSigner, signer);
+
+        // Get the price from the price model
+        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, amount);
+        uint256 protocolFeeAmount = protocolFee * price / 1000;
+        uint256 creatorFeeAmount = creatorFee * price / 1000;
+        uint256 total = price + protocolFeeAmount + creatorFeeAmount;
+        console2.log("Price", price); // 1_000_000_000_000_000
+        // uint256 price = 1 ether;
+
+        // Become the buyer
+        vm.startPrank(buyer, buyer);
+        // Mint with intent
+
+        vm.expectRevert();
+        bbb.mintWithIntent{ value: total }(buyer, amount, signature, data);
         vm.stopPrank();
     }
 
