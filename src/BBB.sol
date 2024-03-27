@@ -150,7 +150,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
             // Mint token
             _mint(to, tokenId, amount, "");
 
-            // Handle financial logic
+            // Compute and distribute fees, return change (if any) to buyer
             return _handleBuy(
                 to,
                 msg.value,
@@ -183,27 +183,26 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         // ERC1155URIStorage: Set the token's URI
         _setURI(tokenId, data.uri);
 
-        // Handle financial logic
+        // Compute and distribute fees, return change (if any) to buyer
         _handleBuy(to, msg.value, IAlmostLinearPriceCurve(data.priceModel), data.creator, 0, amount);
     }
 
     /**
      * @notice Mint existing ERC1155 token(s)
+     * @param to Address to mint token to
      * @param tokenId ID of token to mint
      * @param amount Amount of tokens to mint
      */
-    function mint(address to, uint256 tokenId, uint256 amount) public payable nonReentrant {
+    function mint(address to, uint256 tokenId, uint256 amount) external payable nonReentrant {
         // Checks-effects-interactions pattern
-        // if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
-        // // exists
-        if (tokenIdToSequentialId[tokenId] == 0) revert TokenDoesNotExist(); // If a num is set for this tokenID then
-            // it exists
-            // regardless of supply
+        // If a num is set for this tokenID then it exists regardless of supply
+        if (tokenIdToSequentialId[tokenId] == 0) revert TokenDoesNotExist();
 
         uint256 supplyBeforeMint = totalSupply(tokenId);
 
         _mint(to, tokenId, amount, "");
 
+        // Compute and distribute fees, return change (if any) to buyer
         _handleBuy(
             to,
             msg.value,
@@ -221,20 +220,20 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param minRefund Minimum amount of ETH to refund or revert
      */
     function burn(uint256 tokenId, uint256 amount, uint256 minRefund) external nonReentrant {
-        if (!exists(tokenId)) revert TokenDoesNotExist();
+        // if (!exists(tokenId)) revert TokenDoesNotExist();
 
         uint256 supplyAfterBurn = totalSupply(tokenId) - amount; // This will be the supply after the burn. This will
             // revert if amount > totalSupply.
 
         uint256 ethBalanceBefore = msg.sender.balance;
         _burn(msg.sender, tokenId, amount);
-        _handleSell(msg.sender, tokenId, supplyAfterBurn, amount);
-        if (msg.sender.balance - ethBalanceBefore < minRefund) revert MinRefundNotMet();
+        _handleSell(msg.sender, tokenId, supplyAfterBurn, amount, minRefund);
     }
     /**
      * @notice Make a shitpost
      * @param message The message to shitpost
      */
+
     function shitpost(string memory message) external payable {
         if (msg.value > 0) {
             Address.sendValue(protocolFeeRecipient, msg.value);
@@ -324,15 +323,26 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param tokenId The ID of the token being sold
      * @param supplyAfterBurn The supply of the token after burning
      * @param burnAmount The amount of tokens burned
+     * @param minRefund The minimum amount of ETH to refund
      */
-    function _handleSell(address seller, uint256 tokenId, uint256 supplyAfterBurn, uint256 burnAmount) internal {
+    function _handleSell(
+        address seller,
+        uint256 tokenId,
+        uint256 supplyAfterBurn,
+        uint256 burnAmount,
+        uint256 minRefund
+    )
+        internal
+    {
         address creator = tokenIdToCreator[tokenId];
 
         (uint256 basePrice, uint256 protocolFee, uint256 creatorFee) = _handleRoyalties(
             IAlmostLinearPriceCurve(tokenIdToPriceModel[tokenId]), creator, supplyAfterBurn, burnAmount
         );
+        uint256 refund = basePrice - protocolFee - creatorFee;
+        if (refund < minRefund) revert MinRefundNotMet();
         // Seller gets the base price minus protocol fee minus creator fee
-        Address.sendValue(payable(seller), basePrice - protocolFee - creatorFee);
+        Address.sendValue(payable(seller), refund);
     }
 
     /**

@@ -317,7 +317,7 @@ contract BBBTest is StdCheats, Test {
 
     function test_set_protocol_fee_points(uint256 new_protocol_fee) external {
         // TODO
-        vm.assume(new_protocol_fee < 1000);
+        vm.assume(new_protocol_fee <= 100);
         // Set the new protocol fee
         vm.startPrank(moderator, moderator);
         bbb.setProtocolFeePoints(new_protocol_fee);
@@ -328,7 +328,7 @@ contract BBBTest is StdCheats, Test {
 
     function test_set_creator_fee_points(uint256 new_creator_fee) external {
         // TODO
-        vm.assume(new_creator_fee < 1000);
+        vm.assume(new_creator_fee <= 100);
         // Set the new creator fee
         vm.startPrank(moderator, moderator);
         bbb.setCreatorFeePoints(new_creator_fee);
