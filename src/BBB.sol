@@ -41,11 +41,11 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     // Maps token IDs to their price models
     mapping(uint256 => address) public tokenIdToPriceModel;
 
-    // Maps mint intent hashes to their token IDs
-    mapping(uint256 => uint256) public tokenIdToNum;
+    // Maps mint intent hashes to their token sequential issuance index
+    mapping(uint256 => uint256) public tokenIdToSequentialId;
 
-    // Maps token numbers to their token IDs
-    mapping(uint256 => uint256) public tokenNumToId;
+    // Maps token sequential issuance index to their token IDs
+    mapping(uint256 => uint256) public sequentialIdToTokenId;
 
     // Maps token IDs to their creators' addresses
     mapping(uint256 => address) public tokenIdToCreator;
@@ -144,12 +144,17 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
                 )
             )
         );
+        // Generate the token ID from the mint intent hash
         uint256 tokenId = uint256(mintIntentHash);
-        // If the token has already been minted, mint without the intent
-        if (tokenIdToNum[tokenId] != 0) {
-            uint256 supplyBeforeMint = totalSupply(tokenId);
 
+        // If the token has already been minted, mint without the intent
+        if (tokenIdToSequentialId[tokenId] != 0) {
+            uint256 supplyBeforeMint = totalSupply(tokenId);
+            
+            // Mint token
             _mint(to, tokenId, amount, "");
+
+            // Handle financial logic
             return _handleBuy(
                 to,
                 msg.value,
@@ -159,25 +164,30 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
                 amount
             );
         }
+        // Check if the price model is allowed
         if (!allowedPriceModels[data.priceModel]) revert InvalidPriceModel();
 
         // Recover the signer of the MintIntent
         if (!SignatureChecker.isValidSignatureNow(data.signer, mintIntentHash, signature)) revert InvalidIntent();
 
-        uint256 tokenNum = ++totalIds;
+        // Get the token's sequential index
+        uint256 sequentialId = ++totalIds;
 
         // Store the mint intent data
         tokenIdToCreator[tokenId] = data.creator;
         tokenIdToPriceModel[tokenId] = data.priceModel;
 
         // Enumerate the token
-        tokenIdToNum[tokenId] = tokenNum;
-        tokenNumToId[tokenNum] = tokenId;
+        tokenIdToSequentialId[tokenId] = sequentialId;
+        sequentialIdToTokenId[sequentialId] = tokenId;
 
+        // Mint token
         _mint(to, tokenId, amount, "");
-        // ERC1155URIStorage
+
+        // ERC1155URIStorage: Set the token's URI
         _setURI(tokenId, data.uri);
 
+        // Handle financial logic
         _handleBuy(to, msg.value, IAlmostLinearPriceCurve(data.priceModel), data.creator, 0, amount);
     }
 
@@ -190,7 +200,8 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         // Checks-effects-interactions pattern
         // if (bytes(uri(tokenId)).length == 0) revert TokenDoesNotExist(); // If a URI is set for this tokenID then it
         // // exists
-        if (tokenIdToNum[tokenId] == 0) revert TokenDoesNotExist(); // If a num is set for this tokenID then it exists
+        if (tokenIdToSequentialId[tokenId] == 0) revert TokenDoesNotExist(); // If a num is set for this tokenID then
+            // it exists
             // regardless of supply
 
         uint256 supplyBeforeMint = totalSupply(tokenId);
