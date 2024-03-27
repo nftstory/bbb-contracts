@@ -269,6 +269,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     }
 
     function _setProtocolFeeRecipient(address payable newProtocolFeeRecipient) internal {
+        if (newProtocolFeeRecipient == address(this)) revert InvalidAddress();
         protocolFeeRecipient = newProtocolFeeRecipient;
         emit ProtocolFeeRecipientChanged(newProtocolFeeRecipient);
     }
