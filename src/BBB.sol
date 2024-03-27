@@ -6,26 +6,22 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
-import { ERC1155Burnable } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-import { MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN } from "./structs/MintIntent.sol";
-
+import { MintIntent, MINT_INTENT_TYPE_HASH} from "./structs/MintIntent.sol";
 import { AlmostLinearPriceCurve, IAlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-// import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title bbb
  * @author nftstory
  */
-contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1155Supply, EIP712, Nonces {
+contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1155Supply, EIP712 {
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
 

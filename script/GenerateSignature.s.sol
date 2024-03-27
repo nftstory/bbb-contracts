@@ -3,6 +3,7 @@ pragma solidity >=0.8.23 <0.9.0;
 
 import "../src/BBB.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { EIP712_DOMAIN } from "../src/structs/MintIntent.sol";
 import "forge-std/src/Script.sol";
 
 // Generate Mint Intent signatures that can be used against deployed instances of BBB
