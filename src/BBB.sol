@@ -117,9 +117,10 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
 
     /**
      * @notice Mint new ERC1155 token(s) using an EIP-712 signature
-     * @param data Struct containing minting data
-     * @param amount Amount of tokens to mint
-     * @param signature EIP-712 signature
+     * @param to The address to mint the token to
+     * @param amount The amount of tokens to mint
+     * @param signature The signature of the mint intent
+     * @param data The mint intent
      */
     function mintWithIntent(
         address to,
