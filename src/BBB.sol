@@ -11,7 +11,7 @@ import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-import { MintIntent, MINT_INTENT_TYPE_HASH} from "./structs/MintIntent.sol";
+import { MintIntent, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
 import { AlmostLinearPriceCurve, IAlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
@@ -51,18 +51,12 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     mapping(uint256 => address) public tokenIdToCreator;
 
     // Errors
-    error InvalidRole();
     error InvalidAddress();
     error TokenDoesNotExist();
-    error InvalidAmount();
     error InsufficientFunds();
-    error UriAlreadyMinted();
     error InvalidPriceModel();
-    error NoChangeToPriceModelAllowState();
     error InvalidIntent();
-    error SignatureError(ECDSA.RecoverError, bytes32);
     error InvalidRecipient();
-    error CannotBurnLastToken();
     error RoleTransferFailed();
     error MinRefundNotMet();
 
@@ -110,14 +104,13 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param newHolder The address of the new role holder
      */
     function transferModeratorRole(address newHolder) external onlyRole(MODERATOR_ROLE) {
-        if (newHolder == address(0)) revert InvalidAddress(); // Use renounce instead
-        if (newHolder == _msgSender()) revert InvalidAddress(); // Redundant
-        grantRole(MODERATOR_ROLE, newHolder); // Grant the role to the new holder
-        _revokeRole(MODERATOR_ROLE, _msgSender()); // Revoke the role from the current holder. Using _msgSender() to
-            // ensure we perform the same check as onlyRole does (inherited from Context.sol)
-        if (!hasRole(MODERATOR_ROLE, newHolder)) revert RoleTransferFailed(); // Ensure the role transfer was successful
-        if (hasRole(MODERATOR_ROLE, _msgSender())) revert RoleTransferFailed(); // Ensure the role was successfully
-            // revoked
+        if (newHolder == address(0) || newHolder == _msgSender()) revert InvalidAddress(); // Ensure the new holder is a
+            // valid address and not the current holder.
+        if (!_grantRole(MODERATOR_ROLE, newHolder)) revert RoleTransferFailed(); // Grant the role to the new holder.
+            // Revert on failure.
+        if (!_revokeRole(MODERATOR_ROLE, _msgSender())) revert RoleTransferFailed(); // Revoke the role from the current
+            // holder. Revert on failure. Using _msgSender() to
+            // ensure we perform the same check as onlyRole does (inherited from Context.sol).
     }
 
     /**
@@ -150,7 +143,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         // If the token has already been minted, mint without the intent
         if (tokenIdToSequentialId[tokenId] != 0) {
             uint256 supplyBeforeMint = totalSupply(tokenId);
-            
+
             // Mint token
             _mint(to, tokenId, amount, "");
 
