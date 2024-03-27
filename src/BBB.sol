@@ -67,6 +67,8 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     event ProtocolFeeRecipientChanged(address indexed newProtocolFeeRecipient);
     event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
 
+    event Shitpost(address indexed sender, string indexed message);
+
     constructor(
         string memory _name,
         string memory _signingDomainVersion,
@@ -229,6 +231,10 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         if (msg.sender.balance - ethBalanceBefore < minRefund) revert MinRefundNotMet();
     }
 
+    function shitpost(string memory message) external {
+        emit Shitpost(msg.sender, message);
+    }
+
     /// @notice Allows the Moderator to add or remove price models
     function setAllowedPriceModel(address priceModel, bool allowed) external onlyRole(MODERATOR_ROLE) {
         _setAllowedPriceModel(priceModel, allowed);
@@ -269,7 +275,6 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     }
 
     function _setProtocolFeeRecipient(address payable newProtocolFeeRecipient) internal {
-        if (newProtocolFeeRecipient == address(this)) revert InvalidAddress();
         protocolFeeRecipient = newProtocolFeeRecipient;
         emit ProtocolFeeRecipientChanged(newProtocolFeeRecipient);
     }
