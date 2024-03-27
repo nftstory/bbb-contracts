@@ -59,12 +59,12 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     error InvalidRecipient();
     error RoleTransferFailed();
     error MinRefundNotMet();
+    error InvalidFee();
 
     // Events
-    event Transfer(address indexed from, address indexed to, bytes32 indexed tokenHash, uint256 amount);
     event ProtocolFeeChanged(uint256 newProtocolFeePoints);
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
-    event ProtocolFeeRecipientChanged(address newProtocolFeeRecipient);
+    event ProtocolFeeRecipientChanged(address indexed newProtocolFeeRecipient);
     event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
 
     constructor(
@@ -257,11 +257,13 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     }
 
     function _setProtocolFeePoints(uint256 newProtocolFeePoints) internal {
+        if (newProtocolFeePoints > 100) revert InvalidFee();
         protocolFeePoints = newProtocolFeePoints;
         emit ProtocolFeeChanged(newProtocolFeePoints);
     }
 
     function _setCreatorFeePoints(uint256 newCreatorFeePoints) internal {
+        if (newCreatorFeePoints > 100) revert InvalidFee();
         creatorFeePoints = newCreatorFeePoints;
         emit CreatorFeeChanged(newCreatorFeePoints);
     }
