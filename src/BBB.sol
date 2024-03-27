@@ -230,8 +230,14 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         _handleSell(msg.sender, tokenId, supplyAfterBurn, amount);
         if (msg.sender.balance - ethBalanceBefore < minRefund) revert MinRefundNotMet();
     }
-
-    function shitpost(string memory message) external {
+    /**
+     * @notice Make a shitpost
+     * @param message The message to shitpost
+     */
+    function shitpost(string memory message) external payable {
+        if (msg.value > 0) {
+            Address.sendValue(protocolFeeRecipient, msg.value);
+        }
         emit Shitpost(msg.sender, message);
     }
 
