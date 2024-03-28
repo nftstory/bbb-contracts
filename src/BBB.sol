@@ -67,7 +67,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     event ProtocolFeeRecipientChanged(address indexed newProtocolFeeRecipient);
     event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
 
-    event Shitpost(address indexed sender, string indexed message);
+    event Shitpost(address indexed sender, uint256 indexed tokenId, string indexed message);
 
     constructor(
         string memory _name,
@@ -223,10 +223,9 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         // if (!exists(tokenId)) revert TokenDoesNotExist();
 
         uint256 supplyAfterBurn = totalSupply(tokenId) - amount; // This will be the supply after the burn. This will
-            // revert if amount > totalSupply.
 
-        uint256 ethBalanceBefore = msg.sender.balance;
         _burn(msg.sender, tokenId, amount);
+        // Reverts if the minRefund is not met
         _handleSell(msg.sender, tokenId, supplyAfterBurn, amount, minRefund);
     }
     /**
@@ -234,11 +233,12 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param message The message to shitpost
      */
 
-    function shitpost(string memory message) external payable {
+    function shitpost(uint256 tokenId, string memory message) external payable {
+        if (!exists(tokenId)) revert TokenDoesNotExist();
         if (msg.value > 0) {
             Address.sendValue(protocolFeeRecipient, msg.value);
         }
-        emit Shitpost(msg.sender, message);
+        emit Shitpost(msg.sender, tokenId, message);
     }
 
     /// @notice Allows the Moderator to add or remove price models
@@ -378,17 +378,19 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         return (basePrice, protocolFee, creatorFee);
     }
 
-    // ========== Public Functions ==========
+    // ========== Supporting Functions ==========
     /**
+     * @notice Check if a mint intent is valid
+     * @dev This function can be used to validate mint intents before minting
      * @param data The mint intent
      * @param signature The signature of the mint intent
      * @return bool Whether the mint intent is valid
      */
-    function isValidMintIntent(MintIntent memory data, bytes memory signature) public view returns (bool) {
-        // Moved this here
+    function isValidMintIntent(MintIntent memory data, bytes memory signature) external view returns (bool) {
+        // Check if the price model is allowed. This can change over time as price models are added or removed.
         if (!allowedPriceModels[data.priceModel]) revert InvalidPriceModel();
 
-        // Get the digest of the MintIntent
+        // Compute the digest of the MintIntent
         bytes32 digest = _hashTypedDataV4(
             keccak256(
                 abi.encode(

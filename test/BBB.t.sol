@@ -72,10 +72,6 @@ contract BBBTest is StdCheats, Test {
     function test_roles_assigned_correctly() external {
         // Assert that DEFAULT_ADMIN_ROLE is assigned to address(0)
         assertEq(abi.encode(bbb.getRoleAdmin(bytes32(keccak256("DEFAULT_ADMIN_ROLE")))), abi.encode(address(0)));
-        // Another way to test the same thing
-        assertEq(
-            bbb.getRoleAdmin(bytes32(keccak256("DEFAULT_ADMIN_ROLE"))), bytes32(uint256(uint160(address(0))) << 96)
-        );
         // Assert that MODERTOR_ROLE is it's own admin
         assertEq(bbb.getRoleAdmin(bytes32(keccak256("MODERATOR_ROLE"))), bytes32(keccak256("MODERATOR_ROLE")));
         // Assert that moderator has MODERATOR_ROLE
@@ -98,6 +94,14 @@ contract BBBTest is StdCheats, Test {
         vm.expectRevert();
         vm.prank(address(0x000000000000000000000000000000000000dEaD));
         bbb.setProtocolFeeRecipient(payable(0x000000000000000000000000000000000000baBe));
+    }
+
+    function test_fees_out_of_bounds() external {
+        vm.expectRevert();
+        bbb.setProtocolFeePoints(101);
+
+        vm.expectRevert();
+        bbb.setCreatorFeePoints(101);
     }
 
     // Example signature recovery test from Forge vm.sign
@@ -126,7 +130,7 @@ contract BBBTest is StdCheats, Test {
 
     function test_mint_with_intent(uint256 amount) public {
         // Amount should really be under 100
-        vm.assume(amount < 100); // TODO add a require in the contract
+        vm.assume(amount < 100);
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
