@@ -373,6 +373,40 @@ contract BBBTest is StdCheats, Test {
         // Assert that the new creator fee is set
         assertEq(bbb.creatorFeePoints(), new_creator_fee);
     }
+
+    function test_shitpost(string memory message, uint256 msgValue) external payable {
+        vm.assume(msgValue < 2 ether);
+        vm.assume(msg.value == msgValue);
+        // vm.assume(msg.value < 2 ether);
+        test_mint_with_intent(1);
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
+
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+
+        uint256 tokenId = uint256(digest);
+        vm.recordLogs();
+        bbb.shitpost{ value: msg.value }(tokenId, message);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        // Make sure the event was emitted
+        assertEq(entries.length, 1);
+
+    }
+
+    function test_shitpost_tokenId_nonexistent(string memory message, uint256 msgValue) external payable {
+        vm.assume(msgValue < 2 ether);
+        vm.assume(msg.value == msgValue);
+        // vm.assume(msg.value < 2 ether);
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
+
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+
+        uint256 tokenId = uint256(digest);
+        vm.expectRevert();
+        bbb.shitpost{ value: msg.value }(tokenId, message);
+
+    }
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
