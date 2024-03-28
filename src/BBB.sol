@@ -234,7 +234,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      */
 
     function shitpost(uint256 tokenId, string memory message) external payable {
-        if (!exists(tokenId)) revert TokenDoesNotExist();
+        if (tokenId != 0 && !exists(tokenId)) revert TokenDoesNotExist();
         if (msg.value > 0) {
             Address.sendValue(protocolFeeRecipient, msg.value);
         }

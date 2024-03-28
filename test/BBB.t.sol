@@ -168,7 +168,7 @@ contract BBBTest is StdCheats, Test {
     function test_mint_with_wrong_signature(uint256 amount) public {
         // Amount should really be under 100
         vm.assume(amount > 0);
-        vm.assume(amount < 100); // TODO add a require in the contract
+        vm.assume(amount < 100);
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
@@ -202,15 +202,16 @@ contract BBBTest is StdCheats, Test {
 
     function test_mint(uint256 amount_intent, uint256 amount_no_intent) external {
         vm.assume(amount_intent > 0 || amount_no_intent > 0);
-        vm.assume(amount_intent < 100); // TODO add a require in the contract
-        vm.assume(amount_no_intent < 100); // TODO add a require in the contract
-        vm.assume(amount_intent + amount_no_intent < 100); // TODO add a require in the contract
+        vm.assume(amount_intent < 100);
+        vm.assume(amount_no_intent < 100);
+        vm.assume(amount_intent + amount_no_intent < 100);
 
         // If amount_intent is 0 and amount_no_intent is >0, it should fail
 
         // First mint with intent
         test_mint_with_intent(amount_intent);
         // Then mint without intent
+        // Compute the tokenId based on the MintIntent data used in test_mint_with_intent()
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
@@ -241,9 +242,8 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_burn(uint256 mint_amount, uint256 burn_amount) external {
-        // vm.pauseGasMetering();
         vm.assume(mint_amount > 0);
-        // vm.assume(burn_amount > 0);
+        // burn_amount can be 0
         vm.assume(mint_amount >= burn_amount);
 
         MintIntent memory data =
@@ -269,12 +269,14 @@ contract BBBTest is StdCheats, Test {
         // Become the buyer
         vm.startPrank(buyer, buyer);
         // Mint with intent
-        bbb.burn(tokenId, burn_amount, 0); // To expect an exact minRefund we'd need to know the gas spent
-        vm.stopPrank();
         uint256 refundPrice =
             IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(mint_amount - burn_amount, burn_amount);
         uint256 refundProtocolFeeAmount = protocolFee * refundPrice / 1000;
         uint256 refundCreatorFeeAmount = creatorFee * refundPrice / 1000;
+
+        uint256 totalBurnRefund = refundPrice - refundProtocolFeeAmount - refundCreatorFeeAmount;
+        bbb.burn(tokenId, burn_amount, totalBurnRefund); // TODO change to actual minRefund expected
+        vm.stopPrank();
 
         // Assert that the protocol fee recipient has the correct protocol fee
         assertEq(
@@ -286,8 +288,41 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount - burn_amount);
     }
 
+    function test_burn_fail(uint256 mint_amount, uint256 burn_amount) external {
+        // vm.pauseGasMetering();
+        vm.assume(mint_amount > 0);
+        // vm.assume(burn_amount > 0);
+        vm.assume(mint_amount < burn_amount);
+
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
+
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+
+        uint256 tokenId = uint256(digest);
+
+        uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
+        uint256 creatorBalanceBefore = address(creator).balance;
+        // Mint with intent
+        test_mint_with_intent(mint_amount);
+        assertEq(bbb.balanceOf(buyer, tokenId), mint_amount);
+        // Get the price from the price model
+        uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mint_amount);
+        uint256 protocolFeeAmount = protocolFee * price / 1000;
+        uint256 creatorFeeAmount = creatorFee * price / 1000;
+
+        assertEq(address(protocolFeeRecipient).balance, protocolBalanceBefore + protocolFeeAmount);
+        assertEq(address(creator).balance, creatorBalanceBefore + creatorFeeAmount);
+
+        // Become the buyer
+        vm.startPrank(buyer, buyer);
+        // Mint with intent
+        vm.expectRevert();
+        bbb.burn(tokenId, burn_amount, 0);
+        vm.stopPrank();
+    }
+
     function test_transfer_moderator_role(address new_moderator) external {
-        // TODO
         vm.assume(new_moderator != moderator);
         vm.assume(new_moderator != address(0));
 
@@ -320,7 +355,6 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_set_protocol_fee_points(uint256 new_protocol_fee) external {
-        // TODO
         vm.assume(new_protocol_fee <= 100);
         // Set the new protocol fee
         vm.startPrank(moderator, moderator);
@@ -331,7 +365,6 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_set_creator_fee_points(uint256 new_creator_fee) external {
-        // TODO
         vm.assume(new_creator_fee <= 100);
         // Set the new creator fee
         vm.startPrank(moderator, moderator);
@@ -340,9 +373,6 @@ contract BBBTest is StdCheats, Test {
         // Assert that the new creator fee is set
         assertEq(bbb.creatorFeePoints(), new_creator_fee);
     }
-
-    // TODO Test what happens if the last one is burned and a new person tries to mint
-
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
