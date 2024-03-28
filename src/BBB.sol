@@ -116,13 +116,13 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     }
 
     /**
-     * @notice Mint new ERC1155 token(s) using an EIP-712 signature
+     * @notice Mint ERC1155 token(s) using an EIP-712 signature
      * @param to The address to mint the token to
      * @param amount The amount of tokens to mint
      * @param signature The signature of the mint intent
      * @param data The mint intent
      */
-    function mintWithIntent(
+    function lazybuy(
         address to,
         uint256 amount,
         bytes memory signature,
@@ -193,7 +193,8 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param tokenId ID of token to mint
      * @param amount Amount of tokens to mint
      */
-    function mint(address to, uint256 tokenId, uint256 amount) external payable nonReentrant {
+
+    function buy(address to, uint256 tokenId, uint256 amount) external payable nonReentrant {
         // Checks-effects-interactions pattern
         // If a num is set for this tokenID then it exists regardless of supply
         if (tokenIdToSequentialId[tokenId] == 0) revert TokenDoesNotExist();
@@ -219,12 +220,14 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param amount Amount of tokens to burn
      * @param minRefund Minimum amount of ETH to refund or revert
      */
-    function burn(uint256 tokenId, uint256 amount, uint256 minRefund) external nonReentrant {
+
+    function sell(uint256 tokenId, uint256 amount, uint256 minRefund) external nonReentrant {
         // if (!exists(tokenId)) revert TokenDoesNotExist();
 
         uint256 supplyAfterBurn = totalSupply(tokenId) - amount; // This will be the supply after the burn. This will
 
         _burn(msg.sender, tokenId, amount);
+        
         // Reverts if the minRefund is not met
         _handleSell(msg.sender, tokenId, supplyAfterBurn, amount, minRefund);
     }
@@ -281,6 +284,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     }
 
     function _setProtocolFeeRecipient(address payable newProtocolFeeRecipient) internal {
+        if (newProtocolFeeRecipient == address(this)) revert InvalidAddress();
         protocolFeeRecipient = newProtocolFeeRecipient;
         emit ProtocolFeeRecipientChanged(newProtocolFeeRecipient);
     }
@@ -363,7 +367,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         internal
         returns (uint256, uint256, uint256)
     {
-        // We don't even care about the token ID here, just the price model
+        // Calculate the base price, protocol fee, and creator fee
         uint256 basePrice = priceModel.getBatchMintPrice(currentSupply, amount);
         uint256 protocolFee = basePrice * protocolFeePoints / 1000;
         uint256 creatorFee = basePrice * creatorFeePoints / 1000;
