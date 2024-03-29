@@ -8,7 +8,7 @@ contract Shitpost is Ownable {
     address payable feeRecipient;
     BBB bbb;
 
-    event Shitpost(address indexed sender, uint256 indexed tokenId, string indexed message);
+    event Post(address indexed sender, uint256 indexed tokenId, string indexed message);
     
     error TokenDoesNotExist();
 
@@ -28,6 +28,6 @@ contract Shitpost is Ownable {
         if (msg.value > 0) {
             Address.sendValue(feeRecipient, msg.value);
         }
-        emit Shitpost(msg.sender, tokenId, message);
+        emit Post(msg.sender, tokenId, message);
     }
 }

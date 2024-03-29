@@ -7,6 +7,7 @@ import { StdCheats, Vm } from "forge-std/src/StdCheats.sol";
 import { Vm } from "forge-std/src/Vm.sol";
 
 import { BBB } from "../src/BBB.sol";
+import { Shitpost } from "../src/Shitpost.sol";
 import {
     MintIntent, MINT_INTENT_ENCODE_TYPE, MINT_INTENT_TYPE_HASH, EIP712_DOMAIN
 } from "../src/structs/MintIntent.sol";
@@ -23,6 +24,7 @@ contract BBBTest is StdCheats, Test {
     event AllowedPriceModelsChanged(address priceModel, bool allowed);
 
     BBB bbb;
+    Shitpost shitpost;
 
     // Constructor arguments
     string name = "bbb";
@@ -56,6 +58,8 @@ contract BBBTest is StdCheats, Test {
         vm.recordLogs();
         // Instantiate the contract-under-test.
         bbb = new BBB(name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
+        shitpost = new Shitpost(bbb, protocolFeeRecipient, address(this));
+
         // Get the address of the initialPriceModel, deployed in bbb's constructor
         Vm.Log[] memory entries = vm.getRecordedLogs();
         initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
@@ -374,6 +378,10 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.creatorFeePoints(), new_creator_fee);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                           SHITPOST CONTRACT
+    //////////////////////////////////////////////////////////////*/
+
     function test_shitpost(string memory message, uint256 msgValue) external payable {
         vm.assume(msgValue < 2 ether);
         vm.assume(msg.value == msgValue);
@@ -386,11 +394,10 @@ contract BBBTest is StdCheats, Test {
 
         uint256 tokenId = uint256(digest);
         vm.recordLogs();
-        bbb.shitpost{ value: msg.value }(tokenId, message);
+        shitpost.shitpost{ value: msg.value }(tokenId, message);
         Vm.Log[] memory entries = vm.getRecordedLogs();
         // Make sure the event was emitted
         assertEq(entries.length, 1);
-
     }
 
     function test_shitpost_tokenId_nonexistent(string memory message, uint256 msgValue) external payable {
@@ -404,8 +411,7 @@ contract BBBTest is StdCheats, Test {
 
         uint256 tokenId = uint256(digest);
         vm.expectRevert();
-        bbb.shitpost{ value: msg.value }(tokenId, message);
-
+        shitpost.shitpost{ value: msg.value }(tokenId, message);
     }
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
