@@ -372,7 +372,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     // ========== Supporting Functions ==========
     /**
      * @notice Check if a mint intent is valid
-     * @dev This function can be used to validate mint intents before minting
+     * @dev This convenience function can be used to validate mint intents before minting
      * @param data The mint intent
      * @param signature The signature of the mint intent
      * @return bool Whether the mint intent is valid

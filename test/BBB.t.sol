@@ -122,6 +122,16 @@ contract BBBTest is StdCheats, Test {
         assertEq(signer, recoveredSigner); // [PASS]
     }
 
+    function test_is_valid_mint_intent() external {
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
+
+        (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
+        bool result = bbb.isValidMintIntent(data, toBytesSignature(v, r, s));  
+        assertEq(result, true); // [PASS]
+        
+    }
+
     function test_sign_signature() external {
         (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(
             signerPk, MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri })
@@ -398,7 +408,7 @@ contract BBBTest is StdCheats, Test {
         shitpost.shitpost{ value: msg.value }(tokenId, message);
         Vm.Log[] memory entries = vm.getRecordedLogs();
         // Make sure the event was emitted
-        assertEq(entries.length, 1);
+        assertEq(entries.length, 1); // TODO - verify the event is as expected
     }
 
     function test_shitpost_tokenId_nonexistent(string memory message, uint256 msgValue) external payable {
