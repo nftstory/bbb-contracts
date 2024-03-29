@@ -89,7 +89,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         _setProtocolFeePoints(_protocolFeePoints);
         _setCreatorFeePoints(_creatorFeePoints);
         // Creates a default price model
-        _setAllowedPriceModel(address(new AlmostLinearPriceCurve(2, 10_000, 800_000_000_000_000, 0)), true);
+        _setAllowedPriceModel(address(new AlmostLinearPriceCurve(3, 10_000, 700_000_000_000_000, 0)), true);
     }
 
     /**
