@@ -87,6 +87,17 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(bbb)), false);
     }
 
+    function test_vars_assigned_correctly() external {
+        // Assert that the protocol fee is set correctly
+        assertEq(bbb.protocolFeePoints(), protocolFee);
+        // Assert that the creator fee is set correctly
+        assertEq(bbb.creatorFeePoints(), creatorFee);
+        // Assert that the protocol fee recipient is set correctly
+        assertEq(bbb.protocolFeeRecipient(), protocolFeeRecipient);
+        // Assert that the allowed price model is set correctly
+        assertEq(bbb.allowedPriceModels(initialPriceModel), true);
+    }
+
     function test_unauthorized_role_actions() external {
         vm.expectRevert();
         vm.prank(address(0x000000000000000000000000000000000000dEaD));
@@ -127,19 +138,18 @@ contract BBBTest is StdCheats, Test {
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
         (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(signerPk, data);
-        bool result = bbb.isValidMintIntent(data, toBytesSignature(v, r, s));  
+        bool result = bbb.isValidMintIntent(data, toBytesSignature(v, r, s));
         assertEq(result, true); // [PASS]
-        
     }
+
     function test_is_valid_mint_intent_invalid() external {
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
-  bytes memory signature =
+        bytes memory signature =
             hex"ac7f2f5d4bf713823ad28ffc7fc51bbf31134e6ba0c2c65bee568212a2544d152848e39e5bff75e895482928e3ffed9e2ada2f754c1aa19f9b361c952b698e511b";
 
-        bool result = bbb.isValidMintIntent(data, signature);  
+        bool result = bbb.isValidMintIntent(data, signature);
         assertEq(result, false); // [PASS]
-        
     }
 
     function test_sign_signature() external {
@@ -179,7 +189,6 @@ contract BBBTest is StdCheats, Test {
         // Become the buyer
         vm.startPrank(buyer, buyer);
         // Mint with intent
-
         bbb.lazybuy{ value: total }(buyer, amount, signature, data);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, tokenId), amount);
@@ -188,6 +197,11 @@ contract BBBTest is StdCheats, Test {
         // Assert that the creator has the creator fee
         assertEq(address(creator).balance, creatorFeeAmount);
         vm.stopPrank();
+    }
+
+    function test_creator_assignment() external {
+        test_mint_with_intent(1);
+        assertEq(bbb.tokenIdToCreator((bbb.sequentialIdToTokenId(1))), creator);
     }
 
     function test_mint_with_wrong_signature(uint256 amount) public {
@@ -202,7 +216,7 @@ contract BBBTest is StdCheats, Test {
         uint256 tokenId = uint256(digest);
         console2.log("tokenId:", tokenId);
         // bytes memory signature = toBytesSignature(v, r, s);
-        
+
         // Wrong signature
         bytes memory signature =
             hex"ac7f2f5d4bf713823ad28ffc7fc51bbf31134e6ba0c2c65bee568212a2544d152848e39e5bff75e895482928e3ffed9e2ada2f754c1aa19f9b361c952b698e511b";
@@ -227,7 +241,7 @@ contract BBBTest is StdCheats, Test {
         vm.stopPrank();
     }
 
-    function test_mint(uint256 amount_intent, uint256 amount_no_intent) external {
+    function test_mint(uint256 amount_intent, uint256 amount_no_intent) public {
         vm.assume(amount_intent > 0 || amount_no_intent > 0);
         vm.assume(amount_intent < 100);
         vm.assume(amount_no_intent < 100);
@@ -237,7 +251,7 @@ contract BBBTest is StdCheats, Test {
 
         // First mint with intent
         test_mint_with_intent(amount_intent);
-        // Then mint without intent
+   
         // Compute the tokenId based on the MintIntent data used in test_mint_with_intent()
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
@@ -258,7 +272,7 @@ contract BBBTest is StdCheats, Test {
 
         // Become the buyer
         vm.startPrank(buyer, buyer);
-        // Mint with intent
+        // Mint without intent
         bbb.buy{ value: total }(buyer, tokenId, amount_no_intent);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, tokenId), amount_intent + amount_no_intent);
@@ -347,6 +361,46 @@ contract BBBTest is StdCheats, Test {
         vm.expectRevert();
         bbb.sell(tokenId, burn_amount, 0);
         vm.stopPrank();
+    }
+
+    function test_set_protocol_fee_recipient(address new_protocol_fee_recipient) external {
+        vm.assume(new_protocol_fee_recipient != protocolFeeRecipient);
+        vm.assume(new_protocol_fee_recipient != address(0));
+
+        // Set the new protocol fee recipient
+        vm.startPrank(moderator, moderator);
+        bbb.setProtocolFeeRecipient(payable(new_protocol_fee_recipient));
+        vm.stopPrank();
+        // Assert that the new protocol fee recipient is set
+        assertEq(bbb.protocolFeeRecipient(), payable(new_protocol_fee_recipient));
+    }
+
+    function test_sequential_id_mappings() external {
+        test_mint(3, 3);
+        for (uint256 i = 1; i < 7; i++) {
+            assertEq(
+                bbb.sequentialIdToTokenId(i),
+                bbb.sequentialIdToTokenId(bbb.tokenIdToSequentialId(bbb.sequentialIdToTokenId(i)))
+            );
+        }
+    }
+
+    function test_token_id_to_price_model() external {
+        test_mint_with_intent(10);
+        assertEq(bbb.tokenIdToPriceModel(bbb.sequentialIdToTokenId(1)), initialPriceModel);
+    }
+
+    function test_total_issued() external {
+        test_mint(1, 1);
+        assertEq(bbb.totalIssued(), 1);
+    }
+
+    function test_set_allowed_price_models() external {
+        assertEq(bbb.allowedPriceModels(moderator), false);
+        vm.startPrank(moderator, moderator);
+        bbb.setAllowedPriceModel(moderator, true);
+        vm.stopPrank();
+        assertEq(bbb.allowedPriceModels(moderator), true);
     }
 
     function test_transfer_moderator_role(address new_moderator) external {
