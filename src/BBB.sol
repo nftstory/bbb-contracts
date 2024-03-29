@@ -33,7 +33,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     uint256 public creatorFeePoints; // 50 = 5%
 
     // Total number of extant token IDs
-    uint256 public totalIds;
+    uint256 public totalIssued;
 
     // Maps price models to their allowed state
     mapping(address => bool) public allowedPriceModels;
@@ -165,7 +165,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         if (!SignatureChecker.isValidSignatureNow(data.signer, mintIntentHash, signature)) revert InvalidIntent();
 
         // Get the token's sequential index
-        uint256 sequentialId = ++totalIds;
+        uint256 sequentialId = ++totalIssued;
 
         // Store the mint intent data
         tokenIdToCreator[tokenId] = data.creator;
