@@ -58,13 +58,14 @@ contract BBBTest is StdCheats, Test {
         vm.recordLogs();
         // Instantiate the contract-under-test.
         bbb = new BBB(name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
-        shitpost = new Shitpost(bbb, protocolFeeRecipient, address(this));
 
         // Get the address of the initialPriceModel, deployed in bbb's constructor
         Vm.Log[] memory entries = vm.getRecordedLogs();
         initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
         console2.log("initialPriceModel: ", initialPriceModel); // works
 
+        // Deploy Shitpost contract
+        shitpost = new Shitpost(bbb, protocolFeeRecipient, address(this));
         // Deal ETH to the buyer
         deal(buyer, 2 ether);
     }
