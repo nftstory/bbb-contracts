@@ -131,6 +131,16 @@ contract BBBTest is StdCheats, Test {
         assertEq(result, true); // [PASS]
         
     }
+    function test_is_valid_mint_intent_invalid() external {
+        MintIntent memory data =
+            MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
+  bytes memory signature =
+            hex"ac7f2f5d4bf713823ad28ffc7fc51bbf31134e6ba0c2c65bee568212a2544d152848e39e5bff75e895482928e3ffed9e2ada2f754c1aa19f9b361c952b698e511b";
+
+        bool result = bbb.isValidMintIntent(data, signature);  
+        assertEq(result, false); // [PASS]
+        
+    }
 
     function test_sign_signature() external {
         (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(
@@ -192,6 +202,8 @@ contract BBBTest is StdCheats, Test {
         uint256 tokenId = uint256(digest);
         console2.log("tokenId:", tokenId);
         // bytes memory signature = toBytesSignature(v, r, s);
+        
+        // Wrong signature
         bytes memory signature =
             hex"ac7f2f5d4bf713823ad28ffc7fc51bbf31134e6ba0c2c65bee568212a2544d152848e39e5bff75e895482928e3ffed9e2ada2f754c1aa19f9b361c952b698e511b";
 
