@@ -155,7 +155,7 @@ contract BBBTest is StdCheats, Test {
         vm.startPrank(buyer, buyer);
         // Mint with intent
 
-        bbb.mintWithIntent{ value: total }(buyer, amount, signature, data);
+        bbb.lazybuy{ value: total }(buyer, amount, signature, data);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, tokenId), amount);
         // Assert that the protocol fee recipient has the protocol fee
@@ -196,7 +196,7 @@ contract BBBTest is StdCheats, Test {
         // Mint with intent
 
         vm.expectRevert();
-        bbb.mintWithIntent{ value: total }(buyer, amount, signature, data);
+        bbb.lazybuy{ value: total }(buyer, amount, signature, data);
         vm.stopPrank();
     }
 
@@ -232,7 +232,7 @@ contract BBBTest is StdCheats, Test {
         // Become the buyer
         vm.startPrank(buyer, buyer);
         // Mint with intent
-        bbb.mint{ value: total }(buyer, tokenId, amount_no_intent);
+        bbb.buy{ value: total }(buyer, tokenId, amount_no_intent);
         // Assert that the buyer has the NFT
         assertEq(bbb.balanceOf(buyer, tokenId), amount_intent + amount_no_intent);
         // Assert that the protocol fee recipient has the protocol fee (only the new protocol fee)
@@ -275,7 +275,7 @@ contract BBBTest is StdCheats, Test {
         uint256 refundCreatorFeeAmount = creatorFee * refundPrice / 1000;
 
         uint256 totalBurnRefund = refundPrice - refundProtocolFeeAmount - refundCreatorFeeAmount;
-        bbb.burn(tokenId, burn_amount, totalBurnRefund); // TODO change to actual minRefund expected
+        bbb.sell(tokenId, burn_amount, totalBurnRefund); // TODO change to actual minRefund expected
         vm.stopPrank();
 
         // Assert that the protocol fee recipient has the correct protocol fee
@@ -318,7 +318,7 @@ contract BBBTest is StdCheats, Test {
         vm.startPrank(buyer, buyer);
         // Mint with intent
         vm.expectRevert();
-        bbb.burn(tokenId, burn_amount, 0);
+        bbb.sell(tokenId, burn_amount, 0);
         vm.stopPrank();
     }
 
