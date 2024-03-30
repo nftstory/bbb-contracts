@@ -16,6 +16,8 @@ import { IAlmostLinearPriceCurve } from "../src/pricing/AlmostLinearPriceCurve.s
 
 import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -193,7 +195,7 @@ contract BBBTest is StdCheats, Test {
     }
 
     // Mints multiple NFTs with the same MintIntent
-    function test_mint_with_one_intent(uint256 amount) public {
+    function test_lazybuy_one(uint256 amount) public {
         // Amount should really be under 100
         vm.assume(amount < 100);
         MintIntent memory data =
@@ -230,7 +232,7 @@ contract BBBTest is StdCheats, Test {
     }
 
     // uint256 amountOfEachToken
-    function test_mint_with_many_intents(uint256 amountOfEachToken) public {
+    function test_lazybuy_many(uint256 amountOfEachToken) public {
         // Amount should really be under 100
         vm.assume(amountOfEachToken < 100);
         uint256 uniqueTokens = MINT_INTENT_SAMPLE_SIZE;
@@ -287,11 +289,11 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_creator_assignment() external {
-        test_mint_with_one_intent(1);
+        test_lazybuy_one(1);
         assertEq(bbb.tokenIdToCreator((bbb.sequentialIdToTokenId(1))), creator);
     }
 
-    function test_mint_with_wrong_signature(uint256 amount) public {
+    function test_lazybuy_with_wrong_signature(uint256 amount) public {
         // Amount should really be under 100
         vm.assume(amount > 0);
         vm.assume(amount < 100);
@@ -328,7 +330,7 @@ contract BBBTest is StdCheats, Test {
         vm.stopPrank();
     }
 
-    function test_mint(uint256 amount_intent, uint256 amount_no_intent) public {
+    function test_buy(uint256 amount_intent, uint256 amount_no_intent) public {
         vm.assume(amount_intent > 0 || amount_no_intent > 0);
         vm.assume(amount_intent < 100);
         vm.assume(amount_no_intent < 100);
@@ -337,9 +339,9 @@ contract BBBTest is StdCheats, Test {
         // If amount_intent is 0 and amount_no_intent is >0, it should fail
 
         // First mint with intent
-        test_mint_with_one_intent(amount_intent);
+        test_lazybuy_one(amount_intent);
 
-        // Compute the tokenId based on the MintIntent data used in test_mint_with_one_intent()
+        // Compute the tokenId based on the MintIntent data used in test_lazybuy_one()
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
@@ -369,7 +371,7 @@ contract BBBTest is StdCheats, Test {
         assertEq(address(creator).balance, creatorBalanceBefore + creatorFeeAmount);
     }
 
-    function test_burn_one_token_id(uint256 mint_amount, uint256 burn_amount) external {
+    function test_sell_one_token_id(uint256 mint_amount, uint256 burn_amount) external {
         vm.assume(mint_amount > 0);
         // burn_amount can be 0
         vm.assume(mint_amount >= burn_amount);
@@ -384,7 +386,7 @@ contract BBBTest is StdCheats, Test {
         uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
         uint256 creatorBalanceBefore = address(creator).balance;
         // Mint with intent
-        test_mint_with_one_intent(mint_amount);
+        test_lazybuy_one(mint_amount);
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount);
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mint_amount);
@@ -416,12 +418,12 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount - burn_amount);
     }
 
-    function test_burn_many_token_ids(uint256 mintAmountOfEachToken, uint256 burnAmountOfEachToken) external {
+    function test_sell_many_token_ids(uint256 mintAmountOfEachToken, uint256 burnAmountOfEachToken) external {
         vm.assume(mintAmountOfEachToken > 0);
         // burn_amount can be 0
         vm.assume(mintAmountOfEachToken >= burnAmountOfEachToken);
 
-        test_mint_with_many_intents(mintAmountOfEachToken);
+        test_lazybuy_many(mintAmountOfEachToken);
 
         for (uint256 i = 0; i < MINT_INTENT_SAMPLE_SIZE; i++) {
             SampleMintIntentAndSignature memory sample = sampleMintIntents[i];
@@ -465,7 +467,7 @@ contract BBBTest is StdCheats, Test {
         }
     }
 
-    function test_burn_one_token_id_fail(uint256 mint_amount, uint256 burn_amount) external {
+    function test_sell_one_token_id_fail(uint256 mint_amount, uint256 burn_amount) external {
         // vm.pauseGasMetering();
         vm.assume(mint_amount > 0);
         // vm.assume(burn_amount > 0);
@@ -482,7 +484,7 @@ contract BBBTest is StdCheats, Test {
         uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
         uint256 creatorBalanceBefore = address(creator).balance;
         // Mint with intent
-        test_mint_with_one_intent(mint_amount);
+        test_lazybuy_one(mint_amount);
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount);
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mint_amount);
@@ -513,7 +515,7 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_sequential_id_mappings() external {
-        test_mint(3, 3);
+        test_buy(3, 3);
         for (uint256 i = 1; i < 7; i++) {
             assertEq(
                 bbb.sequentialIdToTokenId(i),
@@ -523,12 +525,12 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_token_id_to_price_model() external {
-        test_mint_with_one_intent(10);
+        test_lazybuy_one(10);
         assertEq(bbb.tokenIdToPriceModel(bbb.sequentialIdToTokenId(1)), initialPriceModel);
     }
 
     function test_total_issued() external {
-        test_mint(1, 1);
+        test_buy(1, 1);
         assertEq(bbb.totalIssued(), 1);
     }
 
@@ -593,10 +595,10 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_changing_fee_points() external {
-        test_mint_with_many_intents(1);
+        test_lazybuy_many(1);
         test_set_protocol_fee_points(10);
         test_set_creator_fee_points(10);
-        test_mint_with_many_intents(1);
+        test_lazybuy_many(1);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -607,7 +609,7 @@ contract BBBTest is StdCheats, Test {
         vm.assume(msgValue < 2 ether);
         vm.assume(msg.value == msgValue);
         // vm.assume(msg.value < 2 ether);
-        test_mint_with_one_intent(1);
+        test_lazybuy_one(1);
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
@@ -619,6 +621,12 @@ contract BBBTest is StdCheats, Test {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         // Make sure the event was emitted
         assertEq(entries.length, 1); // TODO - verify the event is as expected
+    }
+
+    function test_receive() external{
+        vm.prank(buyer); 
+        vm.expectRevert();
+        Address.sendValue(payable(bbb), 1 wei);
     }
 
     function test_shitpost_tokenId_nonexistent(string memory message, uint256 msgValue) external payable {
