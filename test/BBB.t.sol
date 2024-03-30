@@ -21,6 +21,14 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract BBBTest is StdCheats, Test {
+    struct SampleMintIntentAndSignature {
+        MintIntent mintIntent;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        bytes32 digest;
+    }
+
     event AllowedPriceModelsChanged(address priceModel, bool allowed);
 
     BBB bbb;
@@ -43,6 +51,9 @@ contract BBBTest is StdCheats, Test {
 
     address signer;
     uint256 signerPk;
+
+    SampleMintIntentAndSignature[] sampleMintIntents;
+    uint256 public constant MINT_INTENT_SAMPLE_SIZE = 10;
 
     /*//////////////////////////////////////////////////////////////
                                  SETUP
@@ -67,7 +78,25 @@ contract BBBTest is StdCheats, Test {
         // Deploy Shitpost contract
         shitpost = new Shitpost(bbb, protocolFeeRecipient, address(this));
         // Deal ETH to the buyer
-        deal(buyer, 2 ether);
+        // TODO make sure it's enough ETH for the tests
+        deal(buyer, 20 ether);
+
+        create_sample_mintintents(MINT_INTENT_SAMPLE_SIZE);
+    }
+
+    function create_sample_mintintents(uint256 sample_amount) internal {
+        for (uint256 i = 0; i < sample_amount; i++) {
+            address sample_signer;
+            uint256 sample_pk;
+            (sample_signer, sample_pk) = makeAddrAndKey(string(abi.encode(i)));
+            require(buyer != sample_signer, "Sample signer cannot be the buyer");
+            require(protocolFeeRecipient != sample_signer, "Sample signer cannot be the protocol fee recipient");
+            MintIntent memory data =
+                MintIntent({ creator: creator, signer: sample_signer, priceModel: initialPriceModel, uri: uri });
+            (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(sample_pk, data);
+
+            sampleMintIntents.push(SampleMintIntentAndSignature({ mintIntent: data, v: v, r: r, s: s, digest: digest }));
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -163,7 +192,8 @@ contract BBBTest is StdCheats, Test {
         assertEq(signer, recoveredSigner); // [PASS]
     }
 
-    function test_mint_with_intent(uint256 amount) public {
+    // Mints multiple NFTs with the same MintIntent
+    function test_mint_with_one_intent(uint256 amount) public {
         // Amount should really be under 100
         vm.assume(amount < 100);
         MintIntent memory data =
@@ -176,7 +206,7 @@ contract BBBTest is StdCheats, Test {
         bytes memory signature = toBytesSignature(v, r, s);
 
         (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, signature); // TODO
-        assertEq(intentSigner, signer);
+        assertEq(intentSigner, data.signer);
 
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, amount);
@@ -199,8 +229,63 @@ contract BBBTest is StdCheats, Test {
         vm.stopPrank();
     }
 
+    // uint256 amountOfEachToken
+    function test_mint_with_many_intents(uint256 amountOfEachToken) public {
+        // Amount should really be under 100
+        vm.assume(amountOfEachToken < 100);
+        uint256 uniqueTokens = MINT_INTENT_SAMPLE_SIZE;
+
+        for (uint256 i = 0; i < uniqueTokens; i++) {
+            // Get the price from the price model
+            SampleMintIntentAndSignature memory sample = sampleMintIntents[i];
+            MintIntent memory data = sample.mintIntent;
+            bytes32 digest = sample.digest;
+            uint8 v = sample.v;
+            bytes32 r = sample.r;
+            bytes32 s = sample.s;
+            bytes memory signature = toBytesSignature(v, r, s);
+            // Double check the signature
+            (address intentSigner, ECDSA.RecoverError err, bytes32 info) = ECDSA.tryRecover(digest, signature);
+            assertEq(intentSigner, data.signer);
+
+            uint256 tokenId = uint256(digest);
+            // Calculate expected price and fees
+            // getBatchMintPrice starts at 0 every loop because we are minting a new token
+            uint256 price = IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(0, amountOfEachToken);
+            uint256 protocolFeeAmount = protocolFee * price / 1000;
+            uint256 creatorFeeAmount = creatorFee * price / 1000;
+            uint256 total = price + protocolFeeAmount + creatorFeeAmount;
+
+            // Take a snapshot of the protocol and creator address balances before
+            uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
+            uint256 creatorBalanceBefore = address(creator).balance;
+
+            // Mint with intent
+            // Become the buyer
+            vm.startPrank(buyer, buyer);
+            bbb.lazybuy{ value: total }(buyer, amountOfEachToken, signature, data);
+            // bbb.buy{ value: total }(buyer, tokenId, amountOfEachToken);
+            vm.stopPrank();
+
+            // Take a snapshot of the protocol and creator address balances after
+            uint256 protocolBalanceAfter = address(protocolFeeRecipient).balance;
+            uint256 creatorBalanceAfter = address(creator).balance;
+
+            // Assert that the buyer has the NFT
+
+            assertEq(bbb.balanceOf(buyer, tokenId), amountOfEachToken);
+
+            uint256 protocolBalanceChange = protocolBalanceAfter - protocolBalanceBefore;
+            uint256 creatorBalanceChange = creatorBalanceAfter - creatorBalanceBefore;
+            // Assert that the protocol fee recipient received the protocol fee
+            assertEq(protocolBalanceChange, protocolFeeAmount);
+            // Assert that the creator received the creator fee
+            assertEq(creatorBalanceChange, creatorFeeAmount);
+        }
+    }
+
     function test_creator_assignment() external {
-        test_mint_with_intent(1);
+        test_mint_with_one_intent(1);
         assertEq(bbb.tokenIdToCreator((bbb.sequentialIdToTokenId(1))), creator);
     }
 
@@ -250,9 +335,9 @@ contract BBBTest is StdCheats, Test {
         // If amount_intent is 0 and amount_no_intent is >0, it should fail
 
         // First mint with intent
-        test_mint_with_intent(amount_intent);
-   
-        // Compute the tokenId based on the MintIntent data used in test_mint_with_intent()
+        test_mint_with_one_intent(amount_intent);
+
+        // Compute the tokenId based on the MintIntent data used in test_mint_with_one_intent()
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
@@ -282,7 +367,7 @@ contract BBBTest is StdCheats, Test {
         assertEq(address(creator).balance, creatorBalanceBefore + creatorFeeAmount);
     }
 
-    function test_burn(uint256 mint_amount, uint256 burn_amount) external {
+    function test_burn_one_token_id(uint256 mint_amount, uint256 burn_amount) external {
         vm.assume(mint_amount > 0);
         // burn_amount can be 0
         vm.assume(mint_amount >= burn_amount);
@@ -297,7 +382,7 @@ contract BBBTest is StdCheats, Test {
         uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
         uint256 creatorBalanceBefore = address(creator).balance;
         // Mint with intent
-        test_mint_with_intent(mint_amount);
+        test_mint_with_one_intent(mint_amount);
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount);
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mint_amount);
@@ -329,10 +414,58 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount - burn_amount);
     }
 
-    function test_burn_fail(uint256 mint_amount, uint256 burn_amount) external {
+    function test_burn_many_token_ids(uint256 mintAmountOfEachToken, uint256 burnAmountOfEachToken) external {
+        vm.assume(mintAmountOfEachToken > 0);
+        // burn_amount can be 0
+        vm.assume(mintAmountOfEachToken >= burnAmountOfEachToken);
+
+        test_mint_with_many_intents(mintAmountOfEachToken);
+
+        for (uint256 i = 0; i < MINT_INTENT_SAMPLE_SIZE; i++) {
+            SampleMintIntentAndSignature memory sample = sampleMintIntents[i];
+            MintIntent memory data = sample.mintIntent;
+            bytes32 digest = sample.digest;
+
+            uint256 tokenId = uint256(digest);
+
+            // Get the price from the price model
+            uint256 price = IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(mintAmountOfEachToken - burnAmountOfEachToken, burnAmountOfEachToken);
+            uint256 protocolFeeAmount = protocolFee * price / 1000;
+            uint256 creatorFeeAmount = creatorFee * price / 1000;
+            // The refunded ETH
+            uint256 total = price - protocolFeeAmount - creatorFeeAmount;
+
+            // Get the protocol and creator balance before
+            uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
+            uint256 creatorBalanceBefore = address(creator).balance;
+
+            // Become the buyer
+            vm.startPrank(buyer, buyer);
+            // Mint without intent
+            bbb.sell(tokenId, burnAmountOfEachToken, total);
+            vm.stopPrank();
+
+            // Get the protocol and creator balance after
+            uint256 protocolBalanceAfter = address(protocolFeeRecipient).balance;
+            uint256 creatorBalanceAfter = address(creator).balance;
+
+            // Assert that the buyer burned the correct amount of NFTs
+            assertEq(bbb.balanceOf(buyer, tokenId), mintAmountOfEachToken - burnAmountOfEachToken);
+
+            uint256 protocolBalanceChange = protocolBalanceAfter - protocolBalanceBefore;
+            uint256 creatorBalanceChange = creatorBalanceAfter - creatorBalanceBefore;
+            // Assert that the protocol fee recipient received the protocol fee
+            assertEq(protocolBalanceChange, protocolFeeAmount);
+            // Assert that the creator received the creator fee
+            assertEq(creatorBalanceChange, creatorFeeAmount);
+        }
+    }
+
+    function test_burn_one_token_id_fail(uint256 mint_amount, uint256 burn_amount) external {
         // vm.pauseGasMetering();
         vm.assume(mint_amount > 0);
         // vm.assume(burn_amount > 0);
+        // Fails because burn_amount > mint_amount
         vm.assume(mint_amount < burn_amount);
 
         MintIntent memory data =
@@ -345,7 +478,7 @@ contract BBBTest is StdCheats, Test {
         uint256 protocolBalanceBefore = address(protocolFeeRecipient).balance;
         uint256 creatorBalanceBefore = address(creator).balance;
         // Mint with intent
-        test_mint_with_intent(mint_amount);
+        test_mint_with_one_intent(mint_amount);
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount);
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mint_amount);
@@ -386,7 +519,7 @@ contract BBBTest is StdCheats, Test {
     }
 
     function test_token_id_to_price_model() external {
-        test_mint_with_intent(10);
+        test_mint_with_one_intent(10);
         assertEq(bbb.tokenIdToPriceModel(bbb.sequentialIdToTokenId(1)), initialPriceModel);
     }
 
@@ -463,7 +596,7 @@ contract BBBTest is StdCheats, Test {
         vm.assume(msgValue < 2 ether);
         vm.assume(msg.value == msgValue);
         // vm.assume(msg.value < 2 ether);
-        test_mint_with_intent(1);
+        test_mint_with_one_intent(1);
         MintIntent memory data =
             MintIntent({ creator: creator, signer: signer, priceModel: initialPriceModel, uri: uri });
 
