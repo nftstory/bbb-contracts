@@ -89,8 +89,8 @@ contract BBBTest is StdCheats, Test {
             address sample_signer;
             uint256 sample_pk;
             (sample_signer, sample_pk) = makeAddrAndKey(string(abi.encode(i)));
-            require(buyer != sample_signer, "Sample signer cannot be the buyer");
-            require(protocolFeeRecipient != sample_signer, "Sample signer cannot be the protocol fee recipient");
+            require(buyer != sample_signer, "invalid buyer");
+            require(protocolFeeRecipient != sample_signer, "invalid protocolFeeRecipient");
             MintIntent memory data =
                 MintIntent({ creator: creator, signer: sample_signer, priceModel: initialPriceModel, uri: uri });
             (uint8 v, bytes32 r, bytes32 s, bytes32 digest) = getSignatureAndDigest(sample_pk, data);
