@@ -2,7 +2,7 @@
 pragma solidity >=0.8.23 <0.9.0;
 
 import { BBB } from "../src/BBB.sol";
-import { Shitpost} from "../src/Shitpost.sol";
+import { Shitpost } from "../src/Shitpost.sol";
 
 import "forge-std/src/Script.sol";
 

@@ -60,9 +60,8 @@ pragma solidity 0.8.23;
  *                                       @@     @@@@   @@@@@@@@@     @@@@@@@@
  *                                        @@@@@@@@@     @@@@@@        @@@@@
  *                                         @@@@@@
- * 
+ *
  */
-
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
@@ -493,7 +492,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
 }
 
 /**
- * 
+ *
  *        •  •          •  •           •  •
  *    @ @ | /       @ @ | /        @ @ | /
  *   ( b [oo]      ( b [oo]       ( b [oo]
