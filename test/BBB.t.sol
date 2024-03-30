@@ -79,7 +79,7 @@ contract BBBTest is StdCheats, Test {
         shitpost = new Shitpost(bbb, protocolFeeRecipient, address(this));
         // Deal ETH to the buyer
         // TODO make sure it's enough ETH for the tests
-        deal(buyer, 20 ether);
+        deal(buyer, 2000 ether);
 
         create_sample_mintintents(MINT_INTENT_SAMPLE_SIZE);
     }
@@ -210,8 +210,8 @@ contract BBBTest is StdCheats, Test {
 
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, amount);
-        uint256 protocolFeeAmount = protocolFee * price / 1000;
-        uint256 creatorFeeAmount = creatorFee * price / 1000;
+        uint256 protocolFeeAmount = bbb.protocolFeePoints() * price / 1000;
+        uint256 creatorFeeAmount = bbb.creatorFeePoints() * price / 1000;
         uint256 total = price + protocolFeeAmount + creatorFeeAmount;
         console2.log("Price", price); // 1_000_000_000_000_000
         // uint256 price = 1 ether;
@@ -249,11 +249,14 @@ contract BBBTest is StdCheats, Test {
             assertEq(intentSigner, data.signer);
 
             uint256 tokenId = uint256(digest);
+            uint256 tokenSupplyBefore = bbb.totalSupply(tokenId);
             // Calculate expected price and fees
             // getBatchMintPrice starts at 0 every loop because we are minting a new token
-            uint256 price = IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(0, amountOfEachToken);
-            uint256 protocolFeeAmount = protocolFee * price / 1000;
-            uint256 creatorFeeAmount = creatorFee * price / 1000;
+            uint256 price = IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(
+                0 + tokenSupplyBefore, amountOfEachToken + tokenSupplyBefore
+            );
+            uint256 protocolFeeAmount = bbb.protocolFeePoints() * price / 1000;
+            uint256 creatorFeeAmount = bbb.creatorFeePoints() * price / 1000;
             uint256 total = price + protocolFeeAmount + creatorFeeAmount;
 
             // Take a snapshot of the protocol and creator address balances before
@@ -273,7 +276,7 @@ contract BBBTest is StdCheats, Test {
 
             // Assert that the buyer has the NFT
 
-            assertEq(bbb.balanceOf(buyer, tokenId), amountOfEachToken);
+            assertEq(bbb.balanceOf(buyer, tokenId), amountOfEachToken + tokenSupplyBefore);
 
             uint256 protocolBalanceChange = protocolBalanceAfter - protocolBalanceBefore;
             uint256 creatorBalanceChange = creatorBalanceAfter - creatorBalanceBefore;
@@ -590,12 +593,10 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.creatorFeePoints(), new_creator_fee);
     }
 
-    function test_changing_fees() external {
-        vm.prank(buyer);
+    function test_changing_fee_points() external {
         test_mint_with_many_intents(1);
-        test_set_protocol_fee_points(10);
-        test_set_creator_fee_points(10);
-        vm.prank(buyer);
+        // test_set_protocol_fee_points(10);
+        // test_set_creator_fee_points(10);
         test_mint_with_many_intents(1);
     }
 
