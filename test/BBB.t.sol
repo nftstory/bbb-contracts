@@ -429,7 +429,9 @@ contract BBBTest is StdCheats, Test {
             uint256 tokenId = uint256(digest);
 
             // Get the price from the price model
-            uint256 price = IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(mintAmountOfEachToken - burnAmountOfEachToken, burnAmountOfEachToken);
+            uint256 price = IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(
+                mintAmountOfEachToken - burnAmountOfEachToken, burnAmountOfEachToken
+            );
             uint256 protocolFeeAmount = protocolFee * price / 1000;
             uint256 creatorFeeAmount = creatorFee * price / 1000;
             // The refunded ETH
@@ -568,7 +570,7 @@ contract BBBTest is StdCheats, Test {
         vm.stopPrank();
     }
 
-    function test_set_protocol_fee_points(uint256 new_protocol_fee) external {
+    function test_set_protocol_fee_points(uint256 new_protocol_fee) public {
         vm.assume(new_protocol_fee <= 100);
         // Set the new protocol fee
         vm.startPrank(moderator, moderator);
@@ -578,7 +580,7 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.protocolFeePoints(), new_protocol_fee);
     }
 
-    function test_set_creator_fee_points(uint256 new_creator_fee) external {
+    function test_set_creator_fee_points(uint256 new_creator_fee) public {
         vm.assume(new_creator_fee <= 100);
         // Set the new creator fee
         vm.startPrank(moderator, moderator);
@@ -586,6 +588,15 @@ contract BBBTest is StdCheats, Test {
         vm.stopPrank();
         // Assert that the new creator fee is set
         assertEq(bbb.creatorFeePoints(), new_creator_fee);
+    }
+
+    function test_changing_fees() external {
+        vm.prank(buyer);
+        test_mint_with_many_intents(1);
+        test_set_protocol_fee_points(10);
+        test_set_creator_fee_points(10);
+        vm.prank(buyer);
+        test_mint_with_many_intents(1);
     }
 
     /*//////////////////////////////////////////////////////////////
