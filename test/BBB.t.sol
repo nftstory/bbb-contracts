@@ -252,9 +252,8 @@ contract BBBTest is StdCheats, Test {
             uint256 tokenSupplyBefore = bbb.totalSupply(tokenId);
             // Calculate expected price and fees
             // getBatchMintPrice starts at 0 every loop because we are minting a new token
-            uint256 price = IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(
-                0 + tokenSupplyBefore, amountOfEachToken + tokenSupplyBefore
-            );
+            uint256 price =
+                IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(tokenSupplyBefore, amountOfEachToken);
             uint256 protocolFeeAmount = bbb.protocolFeePoints() * price / 1000;
             uint256 creatorFeeAmount = bbb.creatorFeePoints() * price / 1000;
             uint256 total = price + protocolFeeAmount + creatorFeeAmount;
@@ -595,8 +594,8 @@ contract BBBTest is StdCheats, Test {
 
     function test_changing_fee_points() external {
         test_mint_with_many_intents(1);
-        // test_set_protocol_fee_points(10);
-        // test_set_creator_fee_points(10);
+        test_set_protocol_fee_points(10);
+        test_set_creator_fee_points(10);
         test_mint_with_many_intents(1);
     }
 
