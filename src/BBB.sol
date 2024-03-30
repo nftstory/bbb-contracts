@@ -175,13 +175,12 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @param newHolder The address of the new role holder
      */
     function transferModeratorRole(address newHolder) external onlyRole(MODERATOR_ROLE) {
-        if (newHolder == address(0) || newHolder == _msgSender()) revert InvalidAddress(); // Ensure the new holder is a
+        if (newHolder == address(0) || newHolder == msg.sender) revert InvalidAddress(); // Ensure the new holder is a
             // valid address and not the current holder.
         if (!_grantRole(MODERATOR_ROLE, newHolder)) revert RoleTransferFailed(); // Grant the role to the new holder.
             // Revert on failure.
-        if (!_revokeRole(MODERATOR_ROLE, _msgSender())) revert RoleTransferFailed(); // Revoke the role from the current
-            // holder. Revert on failure. Using _msgSender() to
-            // ensure we perform the same check as onlyRole does (inherited from Context.sol).
+        if (!_revokeRole(MODERATOR_ROLE, msg.sender)) revert RoleTransferFailed(); // Revoke the role from the current
+            // holder. Revert on failure.
     }
 
     /**
