@@ -9,12 +9,11 @@ import "forge-std/src/Script.sol";
 /// @dev See the Solidity Scripting tutorial: https://book.getfoundry.sh/tutorials/solidity-scripting
 contract Deploy is Script {
     // Testnet Constructor args
-    string name = "name";
+    string name = "bbb";
     string version = "1";
-    // string uri = "demo_uri";
-    address payable protocolFeeRecipient = payable(address(0x2D246F42CD32eB7e8Bd75F9295c8C457C6811d2e)); // TODO CHANGE
+    address payable protocolFeeRecipient = payable(address(0xfb7C4BAA7ACfb6eBc82cdf7c814850683d549a89)); // TODO CHANGE
         // THIS!!
-    address moderator = address(0x2D246F42CD32eB7e8Bd75F9295c8C457C6811d2e); // TODO CHANGE THIS!!
+    address moderator = address(0xfb7C4BAA7ACfb6eBc82cdf7c814850683d549a89); // TODO CHANGE THIS!!
     uint256 protocolFee = 50;
     uint256 creatorFee = 50;
 
