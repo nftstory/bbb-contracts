@@ -96,6 +96,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     // recipient
 
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
+    address public pendingModerator;
 
     // Configurable
     address payable public protocolFeeRecipient;
@@ -106,19 +107,19 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     uint256 public totalIssued;
 
     // Maps price models to their allowed state
-    mapping(address => bool) public allowedPriceModels;
+    mapping(address priceModel => bool isAllowed) public allowedPriceModels;
 
     // Maps token IDs to their price models
-    mapping(uint256 => address) public tokenIdToPriceModel;
+    mapping(uint256 tokenId => address priceModel) public tokenIdToPriceModel;
 
     // Maps mint intent hashes to their token sequential issuance index
-    mapping(uint256 => uint256) public tokenIdToSequentialId;
+    mapping(uint256 tokenId => uint256 sequentialId) public tokenIdToSequentialId;
 
     // Maps token sequential issuance index to their token IDs
-    mapping(uint256 => uint256) public sequentialIdToTokenId;
+    mapping(uint256 sequentialId => uint256 tokenId) public sequentialIdToTokenId;
 
     // Maps token IDs to their creators' addresses
-    mapping(uint256 => address) public tokenIdToCreator;
+    mapping(uint256 tokenId => address creatorAddress) public tokenIdToCreator;
 
     // Errors
     error InvalidAddress();
@@ -136,6 +137,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address indexed newProtocolFeeRecipient);
     event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
+    event ModeratorRoleTransferStarted(address indexed currentModerator, address indexed newModerator);
 
     constructor(
         string memory _name,
@@ -169,17 +171,26 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     }
 
     /**
-     * @notice Transfer the MODERATOR_ROLE to a new address
+     * @notice Propose transferring Moderator role to a new account. Replaces the pending transfer if there is
+     * one.
      * @dev Only the current role holder can transfer the role.
-     * @param newHolder The address of the new role holder
      */
-    function transferModeratorRole(address newHolder) external onlyRole(MODERATOR_ROLE) {
-        if (newHolder == address(0) || newHolder == msg.sender) revert InvalidAddress(); // Ensure the new holder is a
-            // valid address and not the current holder.
-        if (!_grantRole(MODERATOR_ROLE, newHolder)) revert RoleTransferFailed(); // Grant the role to the new holder.
-            // Revert on failure.
-        if (!_revokeRole(MODERATOR_ROLE, msg.sender)) revert RoleTransferFailed(); // Revoke the role from the current
-            // holder. Revert on failure.
+    function transferModeratorRole(address newModerator) external onlyRole(MODERATOR_ROLE) {
+        if (newModerator == msg.sender || newModerator == address(0)) revert InvalidAddress(); // Ensure the new
+            // Moderator is not the current Moderator or the zero address.
+        pendingModerator = newModerator;
+        emit ModeratorRoleTransferStarted(msg.sender, newModerator);
+    }
+
+    /**
+     * @notice Accept the pending Moderator role transfer
+     * @dev Only the pending Moderator can accept the role transfer.
+     */
+    function acceptModeratorRole() external {
+        if (msg.sender != pendingModerator) revert InvalidAddress();
+        if (!_grantRole(MODERATOR_ROLE, pendingModerator)) revert RoleTransferFailed();
+        delete pendingModerator;
+        if (!_revokeRole(MODERATOR_ROLE, msg.sender)) revert RoleTransferFailed();
     }
 
     /**
