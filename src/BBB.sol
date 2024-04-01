@@ -76,6 +76,7 @@ import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 // Custom
 import { MintIntent, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
+import { PendingRoleTransfer } from "./structs/PendingRoleTransfer.sol";
 import { AlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
 
 // Interfaces
@@ -102,11 +103,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     // recipient
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 
-    struct PendingRoleTransfer {
-        address currentModerator;
-        address newModerator;
-    }
-
+    // Struct to store pending role transfer
     PendingRoleTransfer public pendingRoleTransfer;
 
     // Configurable
@@ -149,6 +146,8 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     event ProtocolFeeRecipientChanged(address indexed newProtocolFeeRecipient);
     event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
     event ModeratorRoleTransferStarted(address indexed currentModerator, address indexed newModerator);
+    event ModeratorRoleTransferCanceled();
+    event ModeratorRoleTransferCompleted(address indexed priorModerator, address indexed newModerator);
 
     constructor(
         string memory _contractJson,
@@ -202,6 +201,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      */
     function cancelModeratorRoleTransfer() external onlyRole(MODERATOR_ROLE) {
         delete pendingRoleTransfer;
+        emit ModeratorRoleTransferCanceled();
     }
 
     /**
@@ -217,6 +217,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
             // role to new moderator
         if (!_revokeRole(MODERATOR_ROLE, pendingRoleTransfer.currentModerator)) revert RoleTransferFailed(); // Must
             // revoke role from old moderator
+        emit ModeratorRoleTransferCompleted(pendingRoleTransfer.currentModerator, pendingRoleTransfer.newModerator);
         delete pendingRoleTransfer;
     }
 
