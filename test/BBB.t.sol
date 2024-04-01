@@ -48,7 +48,7 @@ contract BBBTest is StdCheats, Test {
     address initialPriceModel;
 
     // Accounts needed for tests
-    address constant moderator = 0x1e2820Ea609681A9617d9984dC6188d3c5Ca09cF;
+    address constant owner = 0x1e2820Ea609681A9617d9984dC6188d3c5Ca09cF;
     address payable protocolFeeRecipient = payable(makeAddr("protocolFeeRecipient"));
     address constant creator = 0x0cA6761BC0C1a6CBC8078F33958dE73BCBe00f4e;
     address constant buyer = 0xAb52269Dcf96792700316231f41be3e657Cd710c;
@@ -70,15 +70,20 @@ contract BBBTest is StdCheats, Test {
         // Assign signer an address and pk
         (signer, signerPk) = makeAddrAndKey("signer");
         console2.log(signer);
+        deal(owner, 1 ether);
         vm.recordLogs();
         // Instantiate the contract-under-test.
         // TODO set contract JSON
-        bbb = new BBB(contractJson, name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
-
+        bbb = new BBB(contractJson, name, version, owner, protocolFeeRecipient, protocolFee, creatorFee);
         // Get the address of the initialPriceModel, deployed in bbb's constructor
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
+        initialPriceModel = address(uint160(uint256(entries[entries.length - 2].topics[1])));
         console2.log("initialPriceModel: ", initialPriceModel); // works
+        // Accept Ownership change
+        assertEq(bbb.owner(), address(this));
+        vm.prank(owner, owner);
+        bbb.acceptOwnership();
+        assertEq(bbb.owner(), owner);
 
         // Deploy Shitpost contract
         shitpost = new Shitpost(bbb, protocolFeeRecipient, address(this));
@@ -110,7 +115,7 @@ contract BBBTest is StdCheats, Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_update_contractJson_success(string memory newContractJson) external {
-        vm.prank(moderator, moderator);
+        vm.prank(owner, owner);
         vm.recordLogs();
         bbb.setContractJson(newContractJson);
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -124,17 +129,13 @@ contract BBBTest is StdCheats, Test {
         bbb.setContractJson(newContractJson);
     }
 
-    function test_roles_assigned_correctly() external {
-        // Assert that DEFAULT_ADMIN_ROLE is assigned to address(0)
-        assertEq(abi.encode(bbb.getRoleAdmin(bytes32(keccak256("DEFAULT_ADMIN_ROLE")))), abi.encode(address(0)));
-        // Assert that MODERTOR_ROLE is it's own admin
-        assertEq(bbb.getRoleAdmin(bytes32(keccak256("MODERATOR_ROLE"))), bytes32(keccak256("MODERATOR_ROLE")));
-        // Assert that moderator has MODERATOR_ROLE
-        assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), moderator), true);
-        // Assert that this test contract does not have DEFAULT_ADMIN_ROLE
-        assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(this)), false);
-        // Assert that BBB does not have DEFAULT_ADMIN_ROLE
-        assertEq(bbb.hasRole(bytes32(keccak256("DEFAULT_ADMIN_ROLE")), address(bbb)), false);
+    function test_roles_assigned_correctly(address otherAddress) external {
+        // Assert that owner has the role
+        assertEq(bbb.owner(), owner);
+        // Assert that this the deployer is not the owner
+        assertTrue(bbb.owner() != address(this));
+        // Assert that BBB is not its own owner
+        assertTrue(bbb.owner() != address(bbb));
     }
 
     function test_vars_assigned_correctly() external {
@@ -530,9 +531,10 @@ contract BBBTest is StdCheats, Test {
     function test_set_protocol_fee_recipient(address new_protocol_fee_recipient) external {
         vm.assume(new_protocol_fee_recipient != protocolFeeRecipient);
         vm.assume(new_protocol_fee_recipient != address(0));
+        vm.assume(new_protocol_fee_recipient != address(bbb));
 
         // Set the new protocol fee recipient
-        vm.startPrank(moderator, moderator);
+        vm.startPrank(owner, owner);
         bbb.setProtocolFeeRecipient(payable(new_protocol_fee_recipient));
         vm.stopPrank();
         // Assert that the new protocol fee recipient is set
@@ -564,11 +566,11 @@ contract BBBTest is StdCheats, Test {
 
     // Tests allowing/disallowing price models
     function test_set_allowed_price_models() external {
-        assertEq(bbb.allowedPriceModels(moderator), false);
-        vm.startPrank(moderator, moderator);
-        bbb.setAllowedPriceModel(moderator, true);
+        assertEq(bbb.allowedPriceModels(owner), false);
+        vm.startPrank(owner, owner);
+        bbb.setAllowedPriceModel(owner, true);
         vm.stopPrank();
-        assertEq(bbb.allowedPriceModels(moderator), true);
+        assertEq(bbb.allowedPriceModels(owner), true);
     }
 
     function test_disallowed_price_models_does_not_prevent_buy_sell_extant_tokens() external {
@@ -576,7 +578,7 @@ contract BBBTest is StdCheats, Test {
         vm.prank(buyer);
         test_lazybuy_one(1);
         // Disallow the initial price model
-        vm.startPrank(moderator, moderator);
+        vm.startPrank(owner, owner);
         bbb.setAllowedPriceModel(initialPriceModel, false);
         vm.stopPrank();
         // Mint with intent
@@ -591,44 +593,10 @@ contract BBBTest is StdCheats, Test {
         // TODO test that no new mint intents can use this price model
     }
 
-    // Tests transferring the moderator role to a new address
-    function test_transfer_moderator_role(address new_moderator) external {
-        vm.assume(new_moderator != moderator);
-        vm.assume(new_moderator != address(0));
-
-        // Assert that the current moderator has the MODERATOR_ROLE
-        assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), moderator), true);
-        // Transfer the moderator role
-        vm.prank(moderator, moderator);
-        bbb.transferModeratorRole(new_moderator);
-        vm.prank(new_moderator);
-        bbb.acceptModeratorRole();
-        // Assert that the new moderator has the MODERATOR_ROLE
-        assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), new_moderator), true);
-        // Assert that the old moderator does not have the MODERATOR_ROLE
-        assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), moderator), false);
-    }
-
-    function test_transfer_moderator_zero_address() external {
-        // Expect a revert!
-        vm.startPrank(moderator, moderator);
-        vm.expectRevert();
-        bbb.transferModeratorRole(address(0));
-        vm.stopPrank();
-    }
-
-    function test_transfer_same_moderator() external {
-        // Expect a revert!
-        vm.startPrank(moderator, moderator);
-        vm.expectRevert();
-        bbb.transferModeratorRole(moderator);
-        vm.stopPrank();
-    }
-
     function test_set_protocol_fee_points(uint256 new_protocol_fee) public {
         vm.assume(new_protocol_fee <= 100);
         // Set the new protocol fee
-        vm.startPrank(moderator, moderator);
+        vm.startPrank(owner, owner);
         bbb.setProtocolFeePoints(new_protocol_fee);
         vm.stopPrank();
         // Assert that the new protocol fee is set
@@ -638,7 +606,7 @@ contract BBBTest is StdCheats, Test {
     function test_set_creator_fee_points(uint256 new_creator_fee) public {
         vm.assume(new_creator_fee <= 100);
         // Set the new creator fee
-        vm.startPrank(moderator, moderator);
+        vm.startPrank(owner, owner);
         bbb.setCreatorFeePoints(new_creator_fee);
         vm.stopPrank();
         // Assert that the new creator fee is set

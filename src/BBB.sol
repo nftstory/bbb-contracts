@@ -68,7 +68,7 @@ import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensi
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 
 // Security & utils
-import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { Ownable, Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -76,7 +76,6 @@ import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 // Custom
 import { MintIntent, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
-import { PendingRoleTransfer } from "./structs/PendingRoleTransfer.sol";
 import { AlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
 
 // Interfaces
@@ -96,15 +95,9 @@ import { IERC7572 } from "./interfaces/IERC7572.sol";
  * @dev Lazily mint ERC-1155 tokens using EIP-712 signatures. Each token's buy/sell price is determined by a price
  * model.
  */
-contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1155Supply, EIP712, IERC7572 {
+contract BBB is Ownable2Step, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1155Supply, EIP712, IERC7572 {
     // Contract metadata
     string contractJson;
-    // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
-    // recipient
-    bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
-
-    // Struct to store pending role transfer
-    PendingRoleTransfer public pendingRoleTransfer;
 
     // Configurable
     address payable public protocolFeeRecipient;
@@ -136,7 +129,6 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     error InvalidPriceModel();
     error InvalidIntent();
     error InvalidRecipient();
-    error RoleTransferFailed();
     error MinRefundNotMet();
     error InvalidFee();
 
@@ -145,33 +137,30 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     event CreatorFeeChanged(uint256 newCreatorFeePoints);
     event ProtocolFeeRecipientChanged(address indexed newProtocolFeeRecipient);
     event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
-    event ModeratorRoleTransferStarted(address indexed currentModerator, address indexed newModerator);
-    event ModeratorRoleTransferCanceled();
-    event ModeratorRoleTransferCompleted(address indexed priorModerator, address indexed newModerator);
 
     constructor(
         string memory _contractJson,
         string memory _name,
         string memory _signingDomainVersion,
-        address _moderator,
+        address _newOwner,
         address payable _protocolFeeRecipient,
         uint256 _protocolFeePoints,
         uint256 _creatorFeePoints
     )
         ERC1155("")
         EIP712(_name, _signingDomainVersion)
+        Ownable(msg.sender)
     {
         if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
-        if (_moderator == address(0)) revert InvalidAddress();
+        if (_newOwner == address(0)) revert InvalidAddress();
 
         _setContractJson(_contractJson);
-        _grantRole(MODERATOR_ROLE, _moderator);
-        _setRoleAdmin(MODERATOR_ROLE, MODERATOR_ROLE); // Make the Moderator it's own admin
         _setProtocolFeeRecipient(_protocolFeeRecipient);
         _setProtocolFeePoints(_protocolFeePoints);
         _setCreatorFeePoints(_creatorFeePoints);
         // Creates a default price model
         _setAllowedPriceModel(address(new AlmostLinearPriceCurve(3, 10_000, 700_000_000_000_000, 0)), true);
+        Ownable2Step.transferOwnership(_newOwner); // New owner must call acceptOwnership();
     }
 
     /**
@@ -180,45 +169,6 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      */
     receive() external payable {
         revert InvalidRecipient();
-    }
-
-    /**
-     * @notice Propose transferring Moderator role to a new account. Replaces the pending transfer if there is
-     * one.
-     * @dev Only the current role holder can transfer the role.
-     */
-    function transferModeratorRole(address newModerator) external onlyRole(MODERATOR_ROLE) {
-        if (newModerator == msg.sender || newModerator == address(0)) revert InvalidAddress(); // Ensure the new
-            // Moderator is not the current Moderator or the zero address.
-        pendingRoleTransfer.currentModerator = msg.sender;
-        pendingRoleTransfer.newModerator = newModerator;
-        emit ModeratorRoleTransferStarted(msg.sender, newModerator);
-    }
-
-    /**
-     * @notice Cancel the pending Moderator role transfer
-     * @dev Only the current Moderator can cancel the pending transfer.
-     */
-    function cancelModeratorRoleTransfer() external onlyRole(MODERATOR_ROLE) {
-        delete pendingRoleTransfer;
-        emit ModeratorRoleTransferCanceled();
-    }
-
-    /**
-     * @notice Accept the pending Moderator role transfer
-     * @dev Only the pending Moderator can accept the role transfer.
-     */
-    function acceptModeratorRole() external {
-        if (pendingRoleTransfer.currentModerator == address(0)) revert RoleTransferFailed(); // There must be a pending
-            // transfer
-        if (msg.sender != pendingRoleTransfer.newModerator) revert InvalidAddress(); // Can only be accepted by the new
-            // moderator
-        if (!_grantRole(MODERATOR_ROLE, pendingRoleTransfer.newModerator)) revert RoleTransferFailed(); // Must grant
-            // role to new moderator
-        if (!_revokeRole(MODERATOR_ROLE, pendingRoleTransfer.currentModerator)) revert RoleTransferFailed(); // Must
-            // revoke role from old moderator
-        emit ModeratorRoleTransferCompleted(pendingRoleTransfer.currentModerator, pendingRoleTransfer.newModerator);
-        delete pendingRoleTransfer;
     }
 
     /**
@@ -338,28 +288,28 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
 
     // ========== Admin Functions ==========
 
-    /// @notice Allows the Moderator to update the contract JSON
-    function setContractJson(string memory newContractJson) external onlyRole(MODERATOR_ROLE) {
+    /// @notice Allows the owner to update the contract JSON
+    function setContractJson(string memory newContractJson) external onlyOwner {
         _setContractJson(newContractJson);
     }
 
-    /// @notice Allows the Moderator to add or remove price models
-    function setAllowedPriceModel(address priceModel, bool allowed) external onlyRole(MODERATOR_ROLE) {
+    /// @notice Allows the owner to add or remove price models
+    function setAllowedPriceModel(address priceModel, bool allowed) external onlyOwner {
         _setAllowedPriceModel(priceModel, allowed);
     }
 
     /// @notice Changing the protocol fee mid-way won't break royalty calculations
-    function setProtocolFeePoints(uint256 newProtocolFeePoints) external onlyRole(MODERATOR_ROLE) {
+    function setProtocolFeePoints(uint256 newProtocolFeePoints) external onlyOwner {
         _setProtocolFeePoints(newProtocolFeePoints);
     }
 
     /// @notice Changing the creator fee mid-way won't break royalty calculations
-    function setCreatorFeePoints(uint256 newCreatorFeePoints) external onlyRole(MODERATOR_ROLE) {
+    function setCreatorFeePoints(uint256 newCreatorFeePoints) external onlyOwner {
         _setCreatorFeePoints(newCreatorFeePoints);
     }
 
     /// @notice Changing the protocol fee recipient mid-way won't break royalty calculations
-    function setProtocolFeeRecipient(address payable newProtocolFeeRecipient) external onlyRole(MODERATOR_ROLE) {
+    function setProtocolFeeRecipient(address payable newProtocolFeeRecipient) external onlyOwner {
         _setProtocolFeeRecipient(newProtocolFeeRecipient);
     }
 
@@ -535,15 +485,8 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         super._update(from, to, ids, values);
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(AccessControl, ERC1155)
-        returns (bool)
-    {
-        return AccessControl.supportsInterface(interfaceId) || ERC1155.supportsInterface(interfaceId)
-            || super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155) returns (bool) {
+        return ERC1155.supportsInterface(interfaceId) || super.supportsInterface(interfaceId);
     }
 }
 
