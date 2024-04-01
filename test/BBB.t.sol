@@ -37,6 +37,8 @@ contract BBBTest is StdCheats, Test {
     Shitpost shitpost;
 
     // Constructor arguments
+    string contractJson =
+        '{"name": "bbb","description": "bbb is nice","image": "https://bbb.boats/_next/static/media/logo.a7048512.svg"}';
     string name = "bbb";
     string version = "1";
     string uri = "ipfs://QmfANtwJzFMGBeJGwXEPdqViMcKdzkLQ8WxtTsQp3cXGuV";
@@ -71,7 +73,7 @@ contract BBBTest is StdCheats, Test {
         vm.recordLogs();
         // Instantiate the contract-under-test.
         // TODO set contract JSON
-        bbb = new BBB("", name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
+        bbb = new BBB(contractJson, name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
 
         // Get the address of the initialPriceModel, deployed in bbb's constructor
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -106,6 +108,21 @@ contract BBBTest is StdCheats, Test {
     /*//////////////////////////////////////////////////////////////
                                  TESTS
     //////////////////////////////////////////////////////////////*/
+
+    function test_update_contractJson_success(string memory newContractJson) external {
+        vm.prank(moderator, moderator);
+        vm.recordLogs();
+        bbb.setContractJson(newContractJson);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1); // TODO - verify the event is as expected
+    }
+
+    function test_update_contractJson_fail(string memory newContractJson) external {
+        vm.recordLogs();
+        // Only moderator can update contractJson
+        vm.expectRevert();
+        bbb.setContractJson(newContractJson);
+    }
 
     function test_roles_assigned_correctly() external {
         // Assert that DEFAULT_ADMIN_ROLE is assigned to address(0)
