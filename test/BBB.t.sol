@@ -581,9 +581,10 @@ contract BBBTest is StdCheats, Test {
         // Assert that the current moderator has the MODERATOR_ROLE
         assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), moderator), true);
         // Transfer the moderator role
-        vm.startPrank(moderator, moderator);
+        vm.prank(moderator, moderator);
         bbb.transferModeratorRole(new_moderator);
-        vm.stopPrank();
+        vm.prank(new_moderator);
+        bbb.acceptModeratorRole();
         // Assert that the new moderator has the MODERATOR_ROLE
         assertEq(bbb.hasRole(bytes32(keccak256("MODERATOR_ROLE")), new_moderator), true);
         // Assert that the old moderator does not have the MODERATOR_ROLE

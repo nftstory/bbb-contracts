@@ -69,7 +69,6 @@ import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensi
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import { MintIntent, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
@@ -96,7 +95,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     // recipient
 
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
-    address public pendingModerator;
+    address[2] public pendingRoleTransfer;
 
     // Configurable
     address payable public protocolFeeRecipient;
@@ -178,7 +177,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     function transferModeratorRole(address newModerator) external onlyRole(MODERATOR_ROLE) {
         if (newModerator == msg.sender || newModerator == address(0)) revert InvalidAddress(); // Ensure the new
             // Moderator is not the current Moderator or the zero address.
-        pendingModerator = newModerator;
+        pendingRoleTransfer = [msg.sender, newModerator];
         emit ModeratorRoleTransferStarted(msg.sender, newModerator);
     }
 
@@ -187,10 +186,10 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @dev Only the pending Moderator can accept the role transfer.
      */
     function acceptModeratorRole() external {
-        if (msg.sender != pendingModerator) revert InvalidAddress();
-        if (!_grantRole(MODERATOR_ROLE, pendingModerator)) revert RoleTransferFailed();
-        delete pendingModerator;
-        if (!_revokeRole(MODERATOR_ROLE, msg.sender)) revert RoleTransferFailed();
+        if (msg.sender != pendingRoleTransfer[1]) revert InvalidAddress();
+        if (!_grantRole(MODERATOR_ROLE, pendingRoleTransfer[1])) revert RoleTransferFailed();
+        if (!_revokeRole(MODERATOR_ROLE, pendingRoleTransfer[0])) revert RoleTransferFailed();
+        delete pendingRoleTransfer;
     }
 
     /**
