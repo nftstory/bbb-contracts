@@ -101,7 +101,13 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
-    address[2] public pendingRoleTransfer;
+
+    struct PendingRoleTransfer {
+        address currentModerator;
+        address newModerator;
+    }
+
+    PendingRoleTransfer public pendingRoleTransfer;
 
     // Configurable
     address payable public protocolFeeRecipient;
@@ -185,8 +191,17 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     function transferModeratorRole(address newModerator) external onlyRole(MODERATOR_ROLE) {
         if (newModerator == msg.sender || newModerator == address(0)) revert InvalidAddress(); // Ensure the new
             // Moderator is not the current Moderator or the zero address.
-        pendingRoleTransfer = [msg.sender, newModerator];
+        pendingRoleTransfer.currentModerator = msg.sender;
+        pendingRoleTransfer.newModerator = newModerator;
         emit ModeratorRoleTransferStarted(msg.sender, newModerator);
+    }
+
+    /**
+     * @notice Cancel the pending Moderator role transfer
+     * @dev Only the current Moderator can cancel the pending transfer.
+     */
+    function cancelModeratorRoleTransfer() external onlyRole(MODERATOR_ROLE) {
+        delete pendingRoleTransfer;
     }
 
     /**
@@ -194,9 +209,14 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
      * @dev Only the pending Moderator can accept the role transfer.
      */
     function acceptModeratorRole() external {
-        if (msg.sender != pendingRoleTransfer[1]) revert InvalidAddress();
-        if (!_grantRole(MODERATOR_ROLE, pendingRoleTransfer[1])) revert RoleTransferFailed();
-        if (!_revokeRole(MODERATOR_ROLE, pendingRoleTransfer[0])) revert RoleTransferFailed();
+        if (pendingRoleTransfer.currentModerator == address(0)) revert RoleTransferFailed(); // There must be a pending
+            // transfer
+        if (msg.sender != pendingRoleTransfer.newModerator) revert InvalidAddress(); // Can only be accepted by the new
+            // moderator
+        if (!_grantRole(MODERATOR_ROLE, pendingRoleTransfer.newModerator)) revert RoleTransferFailed(); // Must grant
+            // role to new moderator
+        if (!_revokeRole(MODERATOR_ROLE, pendingRoleTransfer.currentModerator)) revert RoleTransferFailed(); // Must
+            // revoke role from old moderator
         delete pendingRoleTransfer;
     }
 
