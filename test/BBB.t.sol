@@ -70,7 +70,8 @@ contract BBBTest is StdCheats, Test {
         console2.log(signer);
         vm.recordLogs();
         // Instantiate the contract-under-test.
-        bbb = new BBB(name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
+        // TODO set contract JSON
+        bbb = new BBB("", name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
 
         // Get the address of the initialPriceModel, deployed in bbb's constructor
         Vm.Log[] memory entries = vm.getRecordedLogs();

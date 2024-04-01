@@ -21,7 +21,8 @@ contract Deploy is Script {
         uint256 deployerPrivateKey = vm.envUint("GOERLI_PRIVATE_KEY"); // You must have this env var set on your local
             // machine for a PK that has ETH at its first derivation path
         vm.startBroadcast(deployerPrivateKey);
-        bbb = new BBB(name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
+        // TODO set contract JSON
+        bbb = new BBB("", name, version, moderator, protocolFeeRecipient, protocolFee, creatorFee);
         shitpost = new Shitpost(bbb, protocolFeeRecipient, moderator);
         vm.stopBroadcast();
     }

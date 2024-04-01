@@ -62,20 +62,25 @@ pragma solidity 0.8.23;
  *                                         @@@@@@
  *
  */
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-
+// Token contracts
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 
-import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
-
-import { MintIntent, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
-import { AlmostLinearPriceCurve, IAlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
-
+// Security & utils
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+
+// Custom
+import { MintIntent, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
+import { AlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
+
+// Interfaces
+import { IAlmostLinearPriceCurve } from "./interfaces/IAlmostLinearPriceCurve.sol";
+import { IERC7572 } from "./interfaces/IERC7572.sol";
 
 /**
  * @title bbb
@@ -90,10 +95,11 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
  * @dev Lazily mint ERC-1155 tokens using EIP-712 signatures. Each token's buy/sell price is determined by a price
  * model.
  */
-contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1155Supply, EIP712 {
+contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1155Supply, EIP712, IERC7572 {
+    // Contract metadata
+    string contractJson;
     // Define one role in charge of the curve moderation, protocol fee points, creator fee points & protocol fee
     // recipient
-
     bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
     address[2] public pendingRoleTransfer;
 
@@ -139,6 +145,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     event ModeratorRoleTransferStarted(address indexed currentModerator, address indexed newModerator);
 
     constructor(
+        string memory _contractJson,
         string memory _name,
         string memory _signingDomainVersion,
         address _moderator,
@@ -152,6 +159,7 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
         if (_moderator == address(0)) revert InvalidAddress();
 
+        _setContractJson(_contractJson);
         _grantRole(MODERATOR_ROLE, _moderator);
         _setRoleAdmin(MODERATOR_ROLE, MODERATOR_ROLE); // Make the Moderator it's own admin
         _setProtocolFeeRecipient(_protocolFeeRecipient);
@@ -307,6 +315,13 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
         _handleSell(msg.sender, tokenId, supplyAfterBurn, amount, minRefund);
     }
 
+    // ========== Admin Functions ==========
+
+    /// @notice Allows the Moderator to update the contract JSON
+    function setContractJson(string memory newContractJson) external onlyRole(MODERATOR_ROLE) {
+        _setContractJson(newContractJson);
+    }
+
     /// @notice Allows the Moderator to add or remove price models
     function setAllowedPriceModel(address priceModel, bool allowed) external onlyRole(MODERATOR_ROLE) {
         _setAllowedPriceModel(priceModel, allowed);
@@ -328,6 +343,11 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     }
 
     // ========== Internal Functions ==========
+
+    function _setContractJson(string memory newContractJson) internal {
+        contractJson = newContractJson;
+        emit ContractURIUpdated();
+    }
 
     function _setAllowedPriceModel(address priceModel, bool allowed) internal {
         allowedPriceModels[priceModel] = allowed;
@@ -471,6 +491,11 @@ contract BBB is AccessControl, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1
     }
 
     // ========== Overrides ==========
+
+    // Implementation of abstract function in IERC7572
+    function contractURI() external view override returns (string memory) {
+        return string.concat("data:application/json;utf8,", contractJson);
+    }
 
     function uri(uint256 tokenId) public view override(ERC1155, ERC1155URIStorage) returns (string memory) {
         return ERC1155URIStorage.uri(tokenId);
