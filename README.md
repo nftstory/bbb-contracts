@@ -7,7 +7,7 @@ To build: `forge build`
 
 To simulate Deploy: `forge script script/Deploy.s.sol --rpc-url $GOERLI_RPC_URL`
 
-To deploy: add `--broadcast --verify`
+To deploy and verify: `forge script script/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --etherscan-api-key $BASESCAN_API_KEY --broadcast --verify`
 
 think you found a bug? t.me/ nnnnicholas 
 
