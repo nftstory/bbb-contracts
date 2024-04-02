@@ -1,6 +1,25 @@
 # bbb
+## Build instructions
 
-## Template Info
+To test: `forge test`
+
+To build: `forge build`
+
+To simulate Deploy: `forge script script/Deploy.s.sol --rpc-url $GOERLI_RPC_URL`
+
+To deploy and verify: `forge script script/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --etherscan-api-key $BASESCAN_API_KEY --broadcast --verify`
+
+think you found a bug? t.me/ nnnnicholas 
+
+## License
+
+MIT
+
+© nftstory limited 2024
+
+𝓟𝓮𝓻𝓶𝓲𝓼𝓼𝓲𝓸𝓷 𝓲𝓼 𝓱𝓮𝓻𝓮𝓫𝔂 𝓰𝓻𝓪𝓷𝓽𝓮𝓭, 𝓯𝓻𝓮𝓮 𝓸𝓯 𝓬𝓱𝓪𝓻𝓰𝓮, 𝓽𝓸 𝓪𝓷𝔂 𝓹𝓮𝓻𝓼𝓸𝓷 𝓸𝓫𝓽𝓪𝓲𝓷𝓲𝓷𝓰 𝓪 𝓬𝓸𝓹𝔂 𝓸𝓯 𝓽𝓱𝓲𝓼 𝓼𝓸𝓯𝓽𝔀𝓪𝓻𝓮 𝓪𝓷𝓭 𝓪𝓼𝓼𝓸𝓬𝓲𝓪𝓽𝓮𝓭 𝓭𝓸𝓬𝓾𝓶𝓮𝓷𝓽𝓪𝓽𝓲𝓸𝓷 𝓯𝓲𝓵𝓮𝓼 (𝓽𝓱𝓮 “𝓢𝓸𝓯𝓽𝔀𝓪𝓻𝓮”), 𝓽𝓸 𝓭𝓮𝓪𝓵 𝓲𝓷 𝓽𝓱𝓮 𝓢𝓸𝓯𝓽𝔀𝓪𝓻𝓮 𝔀𝓲𝓽𝓱𝓸𝓾𝓽 𝓻𝓮𝓼𝓽𝓻𝓲𝓬𝓽𝓲𝓸𝓷, 𝓲𝓷𝓬𝓵𝓾𝓭𝓲𝓷𝓰 𝔀𝓲𝓽𝓱𝓸𝓾𝓽 𝓵𝓲𝓶𝓲𝓽𝓪𝓽𝓲𝓸𝓷 𝓽𝓱𝓮 𝓻𝓲𝓰𝓱𝓽𝓼 𝓽𝓸 𝓾𝓼𝓮, 𝓬𝓸𝓹𝔂, 𝓶𝓸𝓭𝓲𝓯𝔂, 𝓶𝓮𝓻𝓰𝓮, 𝓹𝓾𝓫𝓵𝓲𝓼𝓱, 𝓭𝓲𝓼𝓽𝓻𝓲𝓫𝓾𝓽𝓮, 𝓼𝓾𝓫𝓵𝓲𝓬𝓮𝓷𝓼𝓮, 𝓪𝓷𝓭/𝓸𝓻 𝓼𝓮𝓵𝓵 𝓬𝓸𝓹𝓲𝓮𝓼 𝓸𝓯 𝓽𝓱𝓮 𝓢𝓸𝓯𝓽𝔀𝓪𝓻𝓮, 𝓪𝓷𝓭 𝓽𝓸 𝓹𝓮𝓻𝓶𝓲𝓽 𝓹𝓮𝓻𝓼𝓸𝓷𝓼 𝓽𝓸 𝔀𝓱𝓸𝓶 𝓽𝓱𝓮 𝓢𝓸𝓯𝓽𝔀𝓪𝓻𝓮 𝓲𝓼 𝓯𝓾𝓻𝓷𝓲𝓼𝓱𝓮𝓭 𝓽𝓸 𝓭𝓸 𝓼𝓸, 𝓼𝓾𝓫𝓳𝓮𝓬𝓽 𝓽𝓸 𝓽𝓱𝓮 𝓯𝓸𝓵𝓵𝓸𝔀𝓲𝓷𝓰 𝓬𝓸𝓷𝓭𝓲𝓽𝓲𝓸𝓷𝓼:𝓣𝓱𝓮 𝓪𝓫𝓸𝓿𝓮 𝓬𝓸𝓹𝔂𝓻𝓲𝓰𝓱𝓽 𝓷𝓸𝓽𝓲𝓬𝓮 𝓪𝓷𝓭 𝓽𝓱𝓲𝓼 𝓹𝓮𝓻𝓶𝓲𝓼𝓼𝓲𝓸𝓷 𝓷𝓸𝓽𝓲𝓬𝓮 𝓼𝓱𝓪𝓵𝓵 𝓫𝓮 𝓲𝓷𝓬𝓵𝓾𝓭𝓮𝓭 𝓲𝓷 𝓪𝓵𝓵 𝓬𝓸𝓹𝓲𝓮𝓼 𝓸𝓻 𝓼𝓾𝓫𝓼𝓽𝓪𝓷𝓽𝓲𝓪𝓵 𝓹𝓸𝓻𝓽𝓲𝓸𝓷𝓼 𝓸𝓯 𝓽𝓱𝓮 𝓢𝓸𝓯𝓽𝔀𝓪𝓻𝓮.𝓣𝓗𝓔 𝓢𝓞𝓕𝓣𝓦𝓐𝓡𝓔 𝓘𝓢 𝓟𝓡𝓞𝓥𝓘𝓓𝓔𝓓 “𝓐𝓢 𝓘𝓢”, 𝓦𝓘𝓣𝓗𝓞𝓤𝓣 𝓦𝓐𝓡𝓡𝓐𝓝𝓣𝓨 𝓞𝓕 𝓐𝓝𝓨 𝓚𝓘𝓝𝓓, 𝓔𝓧𝓟𝓡𝓔𝓢𝓢 𝓞𝓡 𝓘𝓜𝓟𝓛𝓘𝓔𝓓, 𝓘𝓝𝓒𝓛𝓤𝓓𝓘𝓝𝓖 𝓑𝓤𝓣 𝓝𝓞𝓣 𝓛𝓘𝓜𝓘𝓣𝓔𝓓 𝓣𝓞 𝓣𝓗𝓔 𝓦𝓐𝓡𝓡𝓐𝓝𝓣𝓘𝓔𝓢 𝓞𝓕 𝓜𝓔𝓡𝓒𝓗𝓐𝓝𝓣𝓐𝓑𝓘𝓛𝓘𝓣𝓨, 𝓕𝓘𝓣𝓝𝓔𝓢𝓢 𝓕𝓞𝓡 𝓐 𝓟𝓐𝓡𝓣𝓘𝓒𝓤𝓛𝓐𝓡 𝓟𝓤𝓡𝓟𝓞𝓢𝓔 𝓐𝓝𝓓 𝓝𝓞𝓝𝓘𝓝𝓕𝓡𝓘𝓝𝓖𝓔𝓜𝓔𝓝𝓣. 𝓘𝓝 𝓝𝓞 𝓔𝓥𝓔𝓝𝓣 𝓢𝓗𝓐𝓛𝓛 𝓣𝓗𝓔 𝓐𝓤𝓣𝓗𝓞𝓡𝓢 𝓞𝓡 𝓒𝓞𝓟𝓨𝓡𝓘𝓖𝓗𝓣 𝓗𝓞𝓛𝓓𝓔𝓡𝓢 𝓑𝓔 𝓛𝓘𝓐𝓑𝓛𝓔 𝓕𝓞𝓡 𝓐𝓝𝓨 𝓒𝓛𝓐𝓘𝓜, 𝓓𝓐𝓜𝓐𝓖𝓔𝓢 𝓞𝓡 𝓞𝓣𝓗𝓔𝓡 𝓛𝓘𝓐𝓑𝓘𝓛𝓘𝓣𝓨, 𝓦𝓗𝓔𝓣𝓗𝓔𝓡 𝓘𝓝 𝓐𝓝 𝓐𝓒𝓣𝓘𝓞𝓝 𝓞𝓕 𝓒𝓞𝓝𝓣𝓡𝓐𝓒𝓣, 𝓣𝓞𝓡𝓣 𝓞𝓡 𝓞𝓣𝓗𝓔𝓡𝓦𝓘𝓢𝓔, 𝓐𝓡𝓘𝓢𝓘𝓝𝓖 𝓕𝓡𝓞𝓜, 𝓞𝓤𝓣 𝓞𝓕 𝓞𝓡 𝓘𝓝 𝓒𝓞𝓝𝓝𝓔𝓒𝓣𝓘𝓞𝓝 𝓦𝓘𝓣𝓗 𝓣𝓗𝓔 𝓢𝓞𝓕𝓣𝓦𝓐𝓡𝓔 𝓞𝓡 𝓣𝓗𝓔 𝓤𝓢𝓔 𝓞𝓡 𝓞𝓣𝓗𝓔𝓡 𝓓𝓔𝓐𝓛𝓘𝓝𝓖𝓢 𝓘𝓝 𝓣𝓗𝓔 𝓢𝓞𝓕𝓣𝓦𝓐𝓡𝓔.
+
+# Template Info
 
 For instructions about what's included in the Foundry Template this is based on, see the
 [documentation](https://github.com/PaulRBerg/foundry-template).
