@@ -25,7 +25,7 @@ contract Deploy is Script {
             // public address 0xBBB38c30E57a9FEf6068778caB91f1a0D4948BBb
         vm.startBroadcast(deployerPrivateKey);
         // TODO set contract JSON
-        bbb = new BBB(contractJson, name, version, owner, protocolFeeRecipient, protocolFeePoints, creatorFeePoints);
+        bbb = new BBB(owner, protocolFeeRecipient,protocolFeePoints, creatorFeePoints, name, version, contractJson);
 
         // shitpost = new Shitpost(bbb, protocolFeeRecipient, moderator);
         vm.stopBroadcast();
