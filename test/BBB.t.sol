@@ -42,8 +42,8 @@ contract BBBTest is StdCheats, Test {
     string name = "bbb";
     string version = "1";
     string uri = "ipfs://QmfANtwJzFMGBeJGwXEPdqViMcKdzkLQ8WxtTsQp3cXGuV";
-    uint256 protocolFee = 50;
-    uint256 creatorFee = 50;
+    uint256 protocolFeePoints = 50;
+    uint256 creatorFeePoints = 50;
 
     address initialPriceModel;
 
@@ -73,16 +73,15 @@ contract BBBTest is StdCheats, Test {
         deal(owner, 1 ether);
         vm.recordLogs();
         // Instantiate the contract-under-test.
-        // TODO set contract JSON
-        bbb = new BBB(contractJson, name, version, owner, protocolFeeRecipient, protocolFee, creatorFee);
+        bbb = new BBB(owner, protocolFeeRecipient,protocolFeePoints, creatorFeePoints, name, version, contractJson);
         // Get the address of the initialPriceModel, deployed in bbb's constructor
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        initialPriceModel = address(uint160(uint256(entries[entries.length - 2].topics[1])));
+        initialPriceModel = address(uint160(uint256(entries[entries.length - 1].topics[1])));
         console2.log("initialPriceModel: ", initialPriceModel); // works
         // Accept Ownership change
-        assertEq(bbb.owner(), address(this));
-        vm.prank(owner, owner);
-        bbb.acceptOwnership();
+        // assertEq(bbb.owner(), address(this));
+        // vm.prank(owner, owner);
+        // bbb.acceptOwnership();
         assertEq(bbb.owner(), owner);
 
         // Deploy Shitpost contract
@@ -140,9 +139,9 @@ contract BBBTest is StdCheats, Test {
 
     function test_vars_assigned_correctly() external {
         // Assert that the protocol fee is set correctly
-        assertEq(bbb.protocolFeePoints(), protocolFee);
+        assertEq(bbb.protocolFeePoints(), protocolFeePoints);
         // Assert that the creator fee is set correctly
-        assertEq(bbb.creatorFeePoints(), creatorFee);
+        assertEq(bbb.creatorFeePoints(), creatorFeePoints);
         // Assert that the protocol fee recipient is set correctly
         assertEq(bbb.protocolFeeRecipient(), protocolFeeRecipient);
         // Assert that the allowed price model is set correctly
@@ -336,8 +335,8 @@ contract BBBTest is StdCheats, Test {
 
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, amount);
-        uint256 protocolFeeAmount = protocolFee * price / 1000;
-        uint256 creatorFeeAmount = creatorFee * price / 1000;
+        uint256 protocolFeeAmount = protocolFeePoints * price / 1000;
+        uint256 creatorFeeAmount = creatorFeePoints * price / 1000;
         uint256 total = price + protocolFeeAmount + creatorFeeAmount;
         console2.log("Price", price); // 1_000_000_000_000_000
         // uint256 price = 1 ether;
@@ -373,8 +372,8 @@ contract BBBTest is StdCheats, Test {
 
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(amount_intent, amount_no_intent);
-        uint256 protocolFeeAmount = protocolFee * price / 1000;
-        uint256 creatorFeeAmount = creatorFee * price / 1000;
+        uint256 protocolFeeAmount = protocolFeePoints * price / 1000;
+        uint256 creatorFeeAmount = creatorFeePoints * price / 1000;
         uint256 total = price + protocolFeeAmount + creatorFeeAmount;
 
         // Get the protocol and creator balance before
@@ -413,8 +412,8 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount);
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mint_amount);
-        uint256 protocolFeeAmount = protocolFee * price / 1000;
-        uint256 creatorFeeAmount = creatorFee * price / 1000;
+        uint256 protocolFeeAmount = protocolFeePoints * price / 1000;
+        uint256 creatorFeeAmount = creatorFeePoints * price / 1000;
 
         assertEq(address(protocolFeeRecipient).balance, protocolBalanceBefore + protocolFeeAmount);
         assertEq(address(creator).balance, creatorBalanceBefore + creatorFeeAmount);
@@ -424,8 +423,8 @@ contract BBBTest is StdCheats, Test {
         // Mint with intent
         uint256 refundPrice =
             IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(mint_amount - burn_amount, burn_amount);
-        uint256 refundProtocolFeeAmount = protocolFee * refundPrice / 1000;
-        uint256 refundCreatorFeeAmount = creatorFee * refundPrice / 1000;
+        uint256 refundProtocolFeeAmount = protocolFeePoints * refundPrice / 1000;
+        uint256 refundCreatorFeeAmount = creatorFeePoints * refundPrice / 1000;
 
         uint256 totalBurnRefund = refundPrice - refundProtocolFeeAmount - refundCreatorFeeAmount;
         bbb.sell(tokenId, burn_amount, totalBurnRefund); // TODO change to actual minRefund expected
@@ -460,8 +459,8 @@ contract BBBTest is StdCheats, Test {
             uint256 price = IAlmostLinearPriceCurve(data.priceModel).getBatchMintPrice(
                 mintAmountOfEachToken - burnAmountOfEachToken, burnAmountOfEachToken
             );
-            uint256 protocolFeeAmount = protocolFee * price / 1000;
-            uint256 creatorFeeAmount = creatorFee * price / 1000;
+            uint256 protocolFeeAmount = protocolFeePoints * price / 1000;
+            uint256 creatorFeeAmount = creatorFeePoints * price / 1000;
             // The refunded ETH
             uint256 total = price - protocolFeeAmount - creatorFeeAmount;
 
@@ -513,8 +512,8 @@ contract BBBTest is StdCheats, Test {
         assertEq(bbb.balanceOf(buyer, tokenId), mint_amount);
         // Get the price from the price model
         uint256 price = IAlmostLinearPriceCurve(initialPriceModel).getBatchMintPrice(0, mint_amount);
-        uint256 protocolFeeAmount = protocolFee * price / 1000;
-        uint256 creatorFeeAmount = creatorFee * price / 1000;
+        uint256 protocolFeeAmount = protocolFeePoints * price / 1000;
+        uint256 creatorFeeAmount = creatorFeePoints * price / 1000;
 
         assertEq(address(protocolFeeRecipient).balance, protocolBalanceBefore + protocolFeeAmount);
         assertEq(address(creator).balance, creatorBalanceBefore + creatorFeeAmount);

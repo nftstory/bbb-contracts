@@ -64,19 +64,19 @@ pragma solidity 0.8.23;
  */
 // Token contracts
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import { ERC1155URIStorage } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 
 // Security & utils
-import { Ownable, Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import { Ownable, Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-// Custom
-import { MintIntent, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
+// BBB
 import { AlmostLinearPriceCurve } from "./pricing/AlmostLinearPriceCurve.sol";
+import { MintIntent, MINT_INTENT_TYPE_HASH } from "./structs/MintIntent.sol";
 
 // Interfaces
 import { IAlmostLinearPriceCurve } from "./interfaces/IAlmostLinearPriceCurve.sol";
@@ -97,7 +97,7 @@ import { IERC7572 } from "./interfaces/IERC7572.sol";
  */
 contract BBB is Ownable2Step, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC1155Supply, EIP712, IERC7572 {
     // Contract metadata
-    string contractJson;
+    string private contractJson;
 
     // Configurable
     address payable public protocolFeeRecipient;
@@ -123,33 +123,33 @@ contract BBB is Ownable2Step, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC11
     mapping(uint256 tokenId => address creatorAddress) public tokenIdToCreator;
 
     // Errors
-    error InvalidAddress();
-    error TokenDoesNotExist();
     error InsufficientFunds();
-    error InvalidPriceModel();
+    error InvalidAddress();
+    error InvalidFee();
     error InvalidIntent();
+    error InvalidPriceModel();
     error InvalidRecipient();
     error MinRefundNotMet();
-    error InvalidFee();
+    error TokenDoesNotExist();
 
     // Events
-    event ProtocolFeeChanged(uint256 newProtocolFeePoints);
-    event CreatorFeeChanged(uint256 newCreatorFeePoints);
-    event ProtocolFeeRecipientChanged(address indexed newProtocolFeeRecipient);
     event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
+    event CreatorFeeChanged(uint256 newCreatorFeePoints);
+    event ProtocolFeeChanged(uint256 newProtocolFeePoints);
+    event ProtocolFeeRecipientChanged(address indexed newProtocolFeeRecipient);
 
     constructor(
-        string memory _contractJson,
-        string memory _name,
-        string memory _signingDomainVersion,
         address _newOwner,
         address payable _protocolFeeRecipient,
         uint256 _protocolFeePoints,
-        uint256 _creatorFeePoints
+        uint256 _creatorFeePoints,
+        string memory _name,
+        string memory _signingDomainVersion,
+        string memory _contractJson
     )
         ERC1155("")
         EIP712(_name, _signingDomainVersion)
-        Ownable(msg.sender)
+        Ownable(_newOwner)
     {
         if (_protocolFeeRecipient == address(0)) revert InvalidAddress();
         if (_newOwner == address(0)) revert InvalidAddress();
@@ -160,7 +160,6 @@ contract BBB is Ownable2Step, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC11
         _setCreatorFeePoints(_creatorFeePoints);
         // Creates a default price model
         _setAllowedPriceModel(address(new AlmostLinearPriceCurve(3, 10_000, 700_000_000_000_000, 0)), true);
-        Ownable2Step.transferOwnership(_newOwner); // New owner must call acceptOwnership();
     }
 
     /**
@@ -371,9 +370,7 @@ contract BBB is Ownable2Step, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC11
             uint256 excess = msgValue - totalPrice;
             Address.sendValue(payable(buyer), excess);
         }
-        // else {
-        //     // Do nothing - the buyer sent exactly the right amount!
-        // }
+        // If the buyer sent the exact amount, no need to refund
     }
 
     /**
