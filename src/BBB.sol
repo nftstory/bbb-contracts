@@ -85,6 +85,7 @@ import { IERC7572 } from "./interfaces/IERC7572.sol";
 /**
  * @title bbb
  * @author nftstory
+ * @notice version 1.0.0
  *
  *        •  •          •  •           •  •
  *    @ @ | /       @ @ | /        @ @ | /
