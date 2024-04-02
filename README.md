@@ -1,9 +1,13 @@
 # bbb
 
 To test: `forge test`
+
 To build: `forge build`
+
 To simulate Deploy: `forge script script/Deploy.s.sol --rpc-url $GOERLI_RPC_URL`
+
 To deploy: add `--broadcast --verify`
+
 
 think you found a bug? t.me/ nnnnicholas 
 
