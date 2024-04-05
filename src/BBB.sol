@@ -132,6 +132,7 @@ contract BBB is Ownable2Step, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC11
     error InvalidRecipient();
     error MinRefundNotMet();
     error TokenDoesNotExist();
+    error InvalidData();
 
     // Events
     event AllowedPriceModelsChanged(address indexed priceModel, bool allowed);
@@ -267,6 +268,70 @@ contract BBB is Ownable2Step, ReentrancyGuard, ERC1155, ERC1155URIStorage, ERC11
             supplyBeforeMint,
             amount
         );
+    }
+
+    /**
+     * @notice Mint existing ERC1155 token(s)
+     * @param to Address to mint token to
+     * @param tokenId ID of token to mint
+     * @param amount Amount of tokens to mint
+     */
+    function buy(address[] memory to, uint256 tokenId, uint256 amount) external payable nonReentrant {
+        // Checks-effects-interactions pattern
+        // If a num is set for this tokenID then it exists regardless of supply
+        if (tokenIdToSequentialId[tokenId] == 0) revert TokenDoesNotExist();
+
+        uint256 supplyBeforeMint = totalSupply(tokenId);
+
+        for (uint256 i = 0; i < to.length; i++) {
+            _mint(to[i], tokenId, amount, "");
+
+            // Compute and distribute fees, return change (if any) to buyer
+            _handleBuy(
+                to[i],
+                msg.value,
+                IAlmostLinearPriceCurve(tokenIdToPriceModel[tokenId]),
+                tokenIdToCreator[tokenId],
+                supplyBeforeMint,
+                amount
+            );
+        }
+    }
+
+    /**
+     * @notice Mint existing ERC1155 token(s) to a list of addresses
+     * @param to Address to mint token to
+     * @param tokenId ID of token to mint
+     * @param amount Amount of tokens to mint
+     */
+    function buy(
+        address[] memory to,
+        uint256[] memory tokenId,
+        uint256[] memory amount
+    )
+        external
+        payable
+        nonReentrant
+    {
+        if (to.length != tokenId.length || to.length != amount.length) revert InvalidData();
+        for (uint256 i = 0; i < to.length; i++) {
+            // Checks-effects-interactions pattern
+            // If a sequential ID is set for this tokenID then it exists regardless of supply
+            if (tokenIdToSequentialId[tokenId[i]] == 0) revert TokenDoesNotExist();
+
+            uint256 supplyBeforeMint = totalSupply(tokenId[i]);
+            _mint(to[i], tokenId[i], amount[i], "");
+
+            // Compute and distribute fees, return change (if any) to buyer
+            _handleBuy(
+                to[i],
+                msg.value,
+                IAlmostLinearPriceCurve(tokenIdToPriceModel[tokenId[i]]),
+                tokenIdToCreator[tokenId[i]],
+                supplyBeforeMint,
+                amount[i]
+            );
+        }
     }
 
     /**
