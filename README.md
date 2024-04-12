@@ -1,4 +1,8 @@
 # bbb
+
+bbb is an online megamall where all the products are digital! Post a product for free and earn creator fees when collectors trade it. 
+
+
 ## Build instructions
 
 To test: `forge test`
