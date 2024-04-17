@@ -2,6 +2,15 @@
 
 bbb is an online megamall where all the products are digital! Post a product for free and earn creator fees when collectors trade it. 
 
+## Deployed contracts
+
+BBB deployer address https://explorer.degen.tips/address/0xBBB38c30E57a9FEf6068778caB91f1a0D4948BBb
+
+### Degen
+
+BBB.sol on Degen https://explorer.degen.tips/address/0x216848610fA858Ee4975356A9de627C18B479eF9
+BBB AlmostLinearPriceCurve.sol v1 (original Base parameters) https://explorer.degen.tips/address/0xD26b595a322c789B9deF3479D960591C10094f08
+BBB AlmostLinearPriceCurve.sol v2 (parameters adjusted for DEGEN: 3, 1, 6_090_909_090_909_090_909) https://explorer.degen.tips/address/0xa79956C2b65BE14Cb78761B51BB23053AB9a1494
 
 ## Build instructions
 
