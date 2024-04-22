@@ -8,6 +8,8 @@ BBB deployer address https://explorer.degen.tips/address/0xBBB38c30E57a9FEf60687
 
 ### Degen
 
+BBB.sol on Base [0xBebdfCf26A63582738ADE6f20CD909c1d63616d2](https://basescan.org/address/0xAa6Bf8c8EF04Dc384F0eb500699A1eE8A92D71C6)
+
 BBB.sol on Degen https://explorer.degen.tips/address/0x216848610fA858Ee4975356A9de627C18B479eF9
 BBB AlmostLinearPriceCurve.sol v1 (original Base parameters) https://explorer.degen.tips/address/0xD26b595a322c789B9deF3479D960591C10094f08
 BBB AlmostLinearPriceCurve.sol v2 (parameters adjusted for DEGEN: 3, 1, 6_090_909_090_909_090_909) https://explorer.degen.tips/address/0xa79956C2b65BE14Cb78761B51BB23053AB9a1494
